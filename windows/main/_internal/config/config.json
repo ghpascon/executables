@@ -1,0 +1,13 @@
+{
+    "TITLE": "X-BRIDGE",
+    "LOG_PATH": "C:/Users/DELL/Desktop/Logs",
+    "STORAGE_DAYS": 0,
+    "OPEN_BROWSER": false,
+    "BEEP": false,
+    "CLEAR_OLD_TAGS_INTERVAL": null,
+    "TAG_PREFIX": null,
+    "WEBHOOK_URL": null,
+    "DATABASE_URL": null,
+    "XTRACK_URL": null,
+    "PORT": 5000
+}
