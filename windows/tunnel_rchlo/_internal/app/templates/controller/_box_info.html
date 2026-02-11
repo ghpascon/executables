@@ -1,0 +1,37 @@
+<div
+  id="box-info-container"
+  class="p-4 bg-gray-100 border border-gray-300 rounded mb-4"
+>
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="text-lg font-semibold">Box Info</span>
+    <span class="border-l h-6 border-gray-400 mx-2"></span>
+    <div
+      id="box-info-content"
+      class="flex flex-wrap items-center gap-x-6 gap-y-2 text-lg"
+    ></div>
+  </div>
+</div>
+
+<script>
+  async function fetchBoxInfo() {
+    const response = await fetch("{{ url_for('get_box_info') }}");
+    const data = await response.json();
+    const content = document.getElementById("box-info-content");
+    content.innerHTML = "";
+    if (data && typeof data === "object" && Object.keys(data).length > 0) {
+      Object.entries(data).forEach(([key, value]) => {
+        const item = document.createElement("div");
+        item.className = "flex items-center gap-2 whitespace-nowrap";
+        item.innerHTML = `<span class=\"font-bold\">${key.toUpperCase()}:</span> <span class=\"font-semibold text-blue-900\">${value}</span>`;
+        content.appendChild(item);
+      });
+    } else {
+      const noData = document.createElement("span");
+      noData.textContent = "No box info available.";
+      content.appendChild(noData);
+    }
+  }
+
+  fetchBoxInfo();
+  setInterval(fetchBoxInfo, 500);
+</script>

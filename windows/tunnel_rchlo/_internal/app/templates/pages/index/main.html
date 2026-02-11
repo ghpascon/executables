@@ -1,0 +1,21 @@
+{% extends "base.html" %} {% block content %}
+<!-- Main Layout Container -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-5 pb-5 px-4">
+  <div class="lg:col-span-3 space-y-4">
+    {% include 'includes/_events.html' %} {% include 'includes/_devices.html' %}
+  </div>
+  <div class="lg:col-span-9">
+    <div class="flex flex-row gap-4">
+      <div class="flex-1 min-w-0">
+        {% include 'controller/_inform_box.html' %}
+      </div>
+      <div class="flex-1 min-w-0">
+        {% include 'controller/_box_info.html' %}
+      </div>
+    </div>
+    {% if table == "complete" %} {% include 'includes/_tags_all.html' %} {% elif
+    table == "gtin" %} {% include 'includes/_tags_gtin.html' %} {% else %} {%
+    include 'includes/_tags.html' %} {% endif %}
+  </div>
+</div>
+{% endblock %}
