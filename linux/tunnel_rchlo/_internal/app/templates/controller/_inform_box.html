@@ -1,0 +1,48 @@
+<div
+  id="inform-box"
+  class="p-2 bg-blue-100 border border-blue-300 rounded mb-4"
+>
+  <h3 class="text-lg font-semibold">Box Information</h3>
+  <form id="inform-box-form" class="flex items-center gap-2 mb-2">
+    <input
+      type="text"
+      id="box-info"
+      name="box_info"
+      placeholder="Box Info"
+      class="border rounded px-2 py-1 flex-1"
+      required
+      autofocus
+    />
+    <button
+      type="submit"
+      class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded whitespace-nowrap"
+    >
+      Inform
+    </button>
+  </form>
+  <!-- No result message below -->
+</div>
+
+<script>
+  const input = document.getElementById("box-info");
+  document
+    .getElementById("inform-box-form")
+    .addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const boxInfo = input.value;
+      await fetch("{{ url_for('inform_box') }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ box_info: boxInfo }),
+      });
+      input.value = "";
+      input.focus();
+    });
+
+  // Always keep focus on the input
+  document.addEventListener("click", function (e) {
+    if (e.target !== input) {
+      setTimeout(() => input.focus(), 0);
+    }
+  });
+</script>
