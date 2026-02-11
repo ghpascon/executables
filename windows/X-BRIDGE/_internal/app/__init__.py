@@ -1,4 +1,3 @@
-from smartx_rfid.utils.path import get_frozen_path
 from app.core import DOCS_PATH
 
 import toml
