@@ -37,8 +37,8 @@ class Settings:
 		# Load variables with defaults
 		self.TITLE: str = data.get('TITLE', 'SMARTX')
 		self.LOG_PATH: str = data.get('LOG_PATH', 'Logs')
-		self.STORAGE_DAYS: int = data.get('STORAGE_DAYS', 0)
-		self.OPEN_BROWSER: bool = data.get('OPEN_BROWSER', False)
+		self.STORAGE_DAYS: int = data.get('STORAGE_DAYS', 7)
+		self.OPEN_BROWSER: bool = data.get('OPEN_BROWSER', True)
 		self.BEEP: bool = data.get('BEEP', False)
 		self.CLEAR_OLD_TAGS_INTERVAL: int | None = data.get('CLEAR_OLD_TAGS_INTERVAL', None)
 		self.TAG_PREFIX: str | None | list[str] = data.get('TAG_PREFIX', None)
