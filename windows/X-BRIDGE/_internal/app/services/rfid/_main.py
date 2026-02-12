@@ -4,6 +4,7 @@ from smartx_rfid.utils import TagList
 from .integration import Integration
 import asyncio
 from app.core import settings
+from .controller import Controller
 
 
 class RfidManager:
@@ -21,6 +22,9 @@ class RfidManager:
 
 		# INTEGRATION
 		self.integration = Integration()
+
+		# CONTROLLER
+		self.controller = Controller(devices=self.devices, tags=self.tags)
 
 		logging.info(f"{'='*20} RfidManager initialized {'='*20}")
 
