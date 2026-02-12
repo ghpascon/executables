@@ -16,19 +16,25 @@ class Controller:
 
 	# [BOX INFO]
 	def update_box_info(self, box_info: str):
+		box_info = box_info.replace('ç', ';')
 		parts = box_info.split(';')
 		box_id = None
 		qty = 0
-		if len(parts) == 1:
-			box_id = parts[0]
-		elif len(parts) == 2:
-			box_id, qty_str = parts
-			try:
-				qty = int(qty_str)
-			except ValueError:
-				logging.warning(f"Invalid quantity '{qty_str}' in box info: {box_info}")
+		if not len(parts) == 2:
+			error_msg = f'Invalid box info format: {box_info}'
+			self.state_msg = {'text': error_msg, 'level': 'error'}
+			logging.error(error_msg)
+			return
+		box_id, qty_str = parts
+		try:
+			qty = int(qty_str)
+		except ValueError:
+			logging.warning(f"Invalid quantity '{qty_str}' in box info: {box_info}")
+			self.state_msg = {'text': f"Invalid quantity '{qty_str}' in box info", 'level': 'error'}
+			return
 		self.box_info = {'box_id': box_id, 'qty': qty}
 		logging.info(f'Updating box info: {self.box_info}')
+		self.state_msg = {'text': 'Box info updated', 'level': 'success'}
 
 	def validate_box_info(self, name: str):
 		status = True
