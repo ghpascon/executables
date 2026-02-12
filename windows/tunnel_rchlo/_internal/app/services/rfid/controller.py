@@ -10,6 +10,9 @@ class Controller:
 		self.box_info: dict = {}
 		self.tags = tags
 		self.devices = devices
+		self.state_sent = False
+		self.validation_time = 1
+		self.state_msg = {}
 
 	# [BOX INFO]
 	def update_box_info(self, box_info: str):
@@ -43,9 +46,11 @@ class Controller:
 	# [ACTIONS]
 	def approve_box(self, name: str):
 		asyncio.create_task(self._approve(name))
+		self.state_sent = True
 
 	def reject_box(self, name: str):
 		asyncio.create_task(self._reject(name))
+		self.state_sent = True
 
 	async def _approve(self, name: str):
 		logging.info(f"{'='*20} Approving box {'='*20}")
@@ -54,8 +59,11 @@ class Controller:
 			device_name=name, pin=1, state=True, control='pulsed', time=300
 		)
 		if not success:
-			logging.error(f'Failed to write GPO for approving box: {msg}')
+			error_msg = f'Failed to write GPO for approving box: {msg}'
+			self.state_msg = {'text': error_msg, 'level': 'error'}
+			logging.error(error_msg)
 		else:
+			self.state_msg = {'text': 'Box approved successfully!', 'level': 'success'}
 			logging.info('GPO write successful for approving box')
 		self.reset_box()
 
@@ -66,8 +74,11 @@ class Controller:
 			device_name=name, pin=2, state=True, control='pulsed', time=300
 		)
 		if not success:
-			logging.error(f'Failed to write GPO for rejecting box: {msg}')
+			error_msg = f'Failed to write GPO for rejecting box: {msg}'
+			self.state_msg = {'text': error_msg, 'level': 'error'}
+			logging.error(error_msg)
 		else:
+			self.state_msg = {'text': 'Box rejected', 'level': 'error'}
 			logging.info('GPO write successful for rejecting box')
 		self.reset_box()
 
@@ -86,6 +97,8 @@ class Controller:
 			return 1
 
 	def validate_tags(self, name: str, make_action: bool = False):
+		if self.state_sent:
+			return
 		if not self.validate_box_info(name):
 			return
 		# Check if tag count matches box quantity
@@ -104,7 +117,9 @@ class Controller:
 				self.approve_box(name)
 			else:
 				asyncio.create_task(
-					delayed_function(self.validate_tags, 1.0, name, make_action=True)
+					delayed_function(
+						self.validate_tags, self.validation_time, name, make_action=True
+					)
 				)
 		# Box NOK
 		elif state == 2:

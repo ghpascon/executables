@@ -19,3 +19,11 @@ async def inform_box(request: Request):
 @router.get('/box_info')
 async def get_box_info():
 	return JSONResponse(content=rfid_manager.controller.box_info)
+
+
+@router.get('/get_state')
+async def get_state():
+	message = rfid_manager.controller.state_msg.copy()
+	# Clear state message after sending
+	rfid_manager.controller.state_msg = {}
+	return JSONResponse(content=message)

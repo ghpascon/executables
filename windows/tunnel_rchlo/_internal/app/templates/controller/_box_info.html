@@ -34,4 +34,20 @@
 
   fetchBoxInfo();
   setInterval(fetchBoxInfo, 500);
+
+  async function pollState() {
+    try {
+      const response = await fetch("{{ url_for('get_state') }}");
+      const data = await response.json();
+      if (data && typeof data === "object" && Object.keys(data).length > 0) {
+        // Espera-se: { text: string, level: string }
+        const msg = data.text || JSON.stringify(data);
+        const level = data.level || "info";
+        showAlert(msg, level);
+      }
+    } catch (e) {
+      // Optionally handle fetch error
+    }
+  }
+  setInterval(pollState, 500);
 </script>
