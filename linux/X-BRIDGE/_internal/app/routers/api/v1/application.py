@@ -10,6 +10,7 @@ from app.schemas.application import SettingsSchema
 from app.core import settings
 from smartx_rfid.utils import delayed_function
 from app.services.tray import tray_manager
+from app.core import alerts_manager
 
 router_prefix = get_prefix_from_path(__file__)
 router = APIRouter(prefix=router_prefix, tags=[router_prefix])
@@ -89,3 +90,8 @@ async def import_config(data: dict):
 @router.get('/get_version', summary='Get the current application version')
 async def get_version():
 	return JSONResponse(content={'version': __version__})
+
+
+@router.get('/get_alerts', summary='Get current alerts')
+async def get_alerts():
+	return JSONResponse(content=alerts_manager.get_alerts())

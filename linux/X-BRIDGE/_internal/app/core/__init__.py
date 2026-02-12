@@ -4,6 +4,7 @@ import os
 from .build_templates import TemplateManager
 from .indicator import Indicator
 from smartx_rfid.utils.path import get_frozen_path
+from smartx_rfid.utils import AlertsManager
 
 # DEFAULT VARS
 FILES_PATH = get_frozen_path('config')
@@ -28,3 +29,6 @@ logger = LoggerManager(
 
 # templates
 templates = TemplateManager(TEMPLATES_PATH).templates
+
+# alerts
+alerts_manager = AlertsManager()

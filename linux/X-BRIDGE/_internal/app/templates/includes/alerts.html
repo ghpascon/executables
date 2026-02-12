@@ -272,6 +272,24 @@
       init() {
         // Set global instance
         globalAlertsManager = this;
+        // Poll server for alerts every 1s
+        setInterval(async () => {
+          try {
+            const response = await fetch("{{ url_for('get_alerts') }}");
+            if (response.ok) {
+              const alerts = await response.json();
+              if (Array.isArray(alerts)) {
+                alerts.forEach((alert) => {
+                  if (alert && alert.message && alert.level) {
+                    this.addAlert(alert.message, alert.level);
+                  }
+                });
+              }
+            }
+          } catch (e) {
+            // Ignore fetch errors
+          }
+        }, 1000);
       },
 
       addAlert(text, level = "info", duration = 5000) {
