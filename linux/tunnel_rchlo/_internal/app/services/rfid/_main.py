@@ -67,6 +67,8 @@ class RfidManager:
 			)
 
 	def on_tag(self, name: str, tag_data: dict):
+		if self.controller.state_sent:
+			return
 		new_tag, tag = self.tags.add(tag_data, device=name)
 
 		# NEW TAG
@@ -85,6 +87,7 @@ class RfidManager:
 		logging.info(f'[ START ] {name}')
 		self.tags.remove_tags_by_device(device=name)
 		# Validate box info before starting reading
+		self.controller.state_sent = False
 		self.controller.validate_box_info(name)
 
 	def on_stop(self, name: str):
