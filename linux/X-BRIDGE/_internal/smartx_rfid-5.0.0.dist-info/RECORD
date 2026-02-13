@@ -1,4 +1,6 @@
 smartx_rfid/__init__.py,sha256=zNs6ASi3rUxNcqxcaNHx7DicO5Z1QHs3twVoxQZQCT4,274
+smartx_rfid/api/__init__.py,sha256=QwluL40T-jgq_KeCVXeXnw9KlaTlYDBGC_1vEYbfiw8,47
+smartx_rfid/api/xtrack.py,sha256=-It2iS7gGc9cSX-spRHghNoiawSHfAJgBW_t1Q31jJc,5957
 smartx_rfid/clients/__init__.py,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
 smartx_rfid/clients/rchlo.py,sha256=z2xT9YnNEwkbHSeHsJD9BZvSJZ5QtnHZ9R7SpQ21Jxk,221
 smartx_rfid/db/__init__.py,sha256=P8rsrVgc_5NDMH_p4FDs5OBLe3ohaQNR_sadVaeNvxA,35
@@ -40,7 +42,7 @@ smartx_rfid/utils/alerts.py,sha256=wTAZarBb45SuyfVoiH2onY8nMfRTvvUCSttPu2rXQSk,6
 smartx_rfid/utils/event.py,sha256=7QOdiSfiMscoAaTq4U3E3asYGSVnolr9OD3FSYGh6bg,469
 smartx_rfid/utils/functions.py,sha256=w_EOlFet2ImY3E9-NKpe1EQ1Cr_YGXbM2N5cq7_5B8U,700
 smartx_rfid/utils/hash.py,sha256=-c2oN-iUlu8EICb8_oAAFTZ3REoaIhCPdspx-Unp0NM,114
-smartx_rfid/utils/logger_manager.py,sha256=EAm1zsbGVHUJlCg4-_JpQA3t9PlKUqou_zpGdhPgSXk,5884
+smartx_rfid/utils/logger_manager.py,sha256=SXg4vsYTYhB2ArlMIhSyCsqzjBD-YBb6d36SVx9FWeg,8172
 smartx_rfid/utils/path.py,sha256=eRxXKNzzDELna3USfGPNG1EPP2EkLlFxHmf21BMWAgA,3792
 smartx_rfid/utils/printer.py,sha256=5K3ZEBGhVRwReNleew4IsHdrkQcCDs6gQdUalHksgvE,372
 smartx_rfid/utils/regex.py,sha256=vxMR0PbZ6JxRHk2AAA9L3z98uZgrsVqslDFLcxC7P9Q,243
@@ -48,8 +50,8 @@ smartx_rfid/utils/tag_list.py,sha256=NH2RgCz-1DTHZPES1w1wwzwZ2qUZySxnwDDPPvmQqP8
 smartx_rfid/webhook/__init__.py,sha256=cSJmsEI-iofZ1RQHHuPixyAQBts8cHepk7DY4nI-b7E,68
 smartx_rfid/webhook/_main.py,sha256=gdOun2maK3iMfxCDYRLkkMp9NfmdRXbIrsXtmEv7arY,5118
 smartx_rfid/webhook/xtrack.py,sha256=mU0akq4RxefloJcchhpmaG8SFdJ-Rert8G32X0oMikA,1068
-smartx_rfid-4.6.0.dist-info/METADATA,sha256=erEiyXh64mjXIsi_UXPnsa-Ck_fRcD6IQPhnvQEwNgw,8705
-smartx_rfid-4.6.0.dist-info/WHEEL,sha256=kJCRJT_g0adfAJzTx2GUMmS80rTJIVHRCfG0DQgLq3o,88
-smartx_rfid-4.6.0.dist-info/licenses/LICENSE,sha256=npGJO3HuHM3JdFNEXv1jRmP_wRYq9-ujkqJPmLxrtEw,1080
-smartx_rfid-4.6.0.dist-info/INSTALLER,sha256=P13B-4UqGbuX8281YF8F54clSnBZVt4H6Bv_GTCvmjo,12
-smartx_rfid-4.6.0.dist-info/RECORD,,
+smartx_rfid-5.0.0.dist-info/METADATA,sha256=wJ6pC_PdTtg9OPrSXtnaSVWS1bALwwkTSlxlrwUvFio,8705
+smartx_rfid-5.0.0.dist-info/WHEEL,sha256=kJCRJT_g0adfAJzTx2GUMmS80rTJIVHRCfG0DQgLq3o,88
+smartx_rfid-5.0.0.dist-info/licenses/LICENSE,sha256=npGJO3HuHM3JdFNEXv1jRmP_wRYq9-ujkqJPmLxrtEw,1080
+smartx_rfid-5.0.0.dist-info/INSTALLER,sha256=P13B-4UqGbuX8281YF8F54clSnBZVt4H6Bv_GTCvmjo,12
+smartx_rfid-5.0.0.dist-info/RECORD,,

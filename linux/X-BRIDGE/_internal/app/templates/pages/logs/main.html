@@ -3,10 +3,19 @@
   <!-- Header -->
   <div class="mb-6">
     <div class="flex items-center justify-between mb-4">
-      <h1 class="text-3xl font-bold text-gray-900">
-        <i class="fas fa-file-text mr-3 text-blue-600"></i>
-        System Logs
-      </h1>
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="text-3xl font-bold text-gray-900">
+          <i class="fas fa-file-text mr-3 text-blue-600"></i>
+          System Logs
+        </h1>
+        <button
+          @click="clearFilters()"
+          class="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-sm border border-gray-300 shadow-sm"
+          title="Clear all filters"
+        >
+          <i class="fas fa-eraser mr-2"></i>Clear Filters
+        </button>
+      </div>
 
       <!-- Controls -->
       <div class="flex items-center space-x-4">
@@ -37,9 +46,9 @@
 
   <!-- Search & Filters -->
   <div class="mb-4">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
       <!-- Search -->
-      <div class="md:col-span-3">
+      <div class="md:col-span-2">
         <div class="relative">
           <input
             type="text"
@@ -50,7 +59,6 @@
           <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
         </div>
       </div>
-
       <!-- Level Filter -->
       <div>
         <select
@@ -63,6 +71,138 @@
           <option value="INFO">Info</option>
           <option value="DEBUG">Debug</option>
         </select>
+      </div>
+      <!-- Module Filter with multi-select autocomplete -->
+      <div class="relative">
+        <input
+          type="text"
+          x-model="moduleInput"
+          @input="showModuleOptions = true"
+          @focus="showModuleOptions = true"
+          @blur="setTimeout(() => showModuleOptions = false, 150)"
+          @keydown.enter.prevent="addModuleFilter()"
+          placeholder="Module"
+          class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500"
+          autocomplete="off"
+        />
+        <div
+          x-show="selectedModules.length > 0"
+          class="flex flex-wrap gap-1 mt-1"
+        >
+          <template x-for="(mod, idx) in selectedModules" :key="mod">
+            <span
+              class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs flex items-center"
+            >
+              <span x-text="mod"></span>
+              <button
+                class="ml-1 text-blue-600 hover:text-red-600"
+                @click.prevent="removeModuleFilter(idx)"
+              >
+                <i class="fas fa-times"></i>
+              </button>
+            </span>
+          </template>
+        </div>
+        <div
+          x-show="showModuleOptions && filteredModuleOptions.length > 0"
+          class="absolute z-10 w-full bg-white border border-gray-300 rounded shadow max-h-40 overflow-y-auto"
+        >
+          <template x-for="option in filteredModuleOptions" :key="option">
+            <div
+              class="px-3 py-1 hover:bg-blue-100 cursor-pointer text-gray-800 text-sm"
+              @mousedown.prevent="moduleInput = option; addModuleFilter()"
+              x-text="option"
+            ></div>
+          </template>
+        </div>
+      </div>
+      <!-- Function Filter with multi-select autocomplete -->
+      <div class="relative">
+        <input
+          type="text"
+          x-model="functionInput"
+          @input="showFunctionOptions = true"
+          @focus="showFunctionOptions = true"
+          @blur="setTimeout(() => showFunctionOptions = false, 150)"
+          @keydown.enter.prevent="addFunctionFilter()"
+          placeholder="Function"
+          class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500"
+          autocomplete="off"
+        />
+        <div
+          x-show="selectedFunctions.length > 0"
+          class="flex flex-wrap gap-1 mt-1"
+        >
+          <template x-for="(fn, idx) in selectedFunctions" :key="fn">
+            <span
+              class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs flex items-center"
+            >
+              <span x-text="fn"></span>
+              <button
+                class="ml-1 text-blue-600 hover:text-red-600"
+                @click.prevent="removeFunctionFilter(idx)"
+              >
+                <i class="fas fa-times"></i>
+              </button>
+            </span>
+          </template>
+        </div>
+        <div
+          x-show="showFunctionOptions && filteredFunctionOptions.length > 0"
+          class="absolute z-10 w-full bg-white border border-gray-300 rounded shadow max-h-40 overflow-y-auto"
+        >
+          <template x-for="option in filteredFunctionOptions" :key="option">
+            <div
+              class="px-3 py-1 hover:bg-blue-100 cursor-pointer text-gray-800 text-sm"
+              @mousedown.prevent="functionInput = option; addFunctionFilter()"
+              x-text="option"
+            ></div>
+          </template>
+        </div>
+      </div>
+      <!-- Pathname Filter with multi-select autocomplete -->
+      <div class="relative">
+        <input
+          type="text"
+          x-model="pathnameInput"
+          @input="showPathnameOptions = true"
+          @focus="showPathnameOptions = true"
+          @blur="setTimeout(() => showPathnameOptions = false, 150)"
+          @keydown.enter.prevent="addPathnameFilter()"
+          placeholder="Pathname"
+          class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500"
+          autocomplete="off"
+        />
+        <div
+          x-show="selectedPathnames.length > 0"
+          class="flex flex-wrap gap-1 mt-1"
+        >
+          <template x-for="(pn, idx) in selectedPathnames" :key="pn">
+            <span
+              class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs flex items-center"
+            >
+              <span x-text="pn"></span>
+              <button
+                class="ml-1 text-blue-600 hover:text-red-600"
+                @click.prevent="removePathnameFilter(idx)"
+              >
+                <i class="fas fa-times"></i>
+              </button>
+            </span>
+          </template>
+        </div>
+        <div
+          x-show="showPathnameOptions && filteredPathnameOptions.length > 0"
+          class="absolute z-10 w-full bg-white border border-gray-300 rounded shadow max-h-40 overflow-y-auto"
+        >
+          <template x-for="option in filteredPathnameOptions" :key="option">
+            <div
+              class="px-3 py-1 hover:bg-blue-100 cursor-pointer text-gray-800 text-sm"
+              @mousedown.prevent="pathnameInput = option; addPathnameFilter()"
+              x-text="option"
+            ></div>
+          </template>
+        </div>
       </div>
     </div>
   </div>
@@ -94,16 +234,49 @@
 
       <!-- Logs List -->
       <div x-show="logs.length > 0" class="p-4">
-        <template x-for="(line, index) in filteredLogs" :key="index">
+        <template x-for="(log, index) in filteredLogs" :key="index">
           <div
-            class="mb-1 hover:bg-gray-800 px-2 py-1 rounded"
-            :class="getLineClass(line)"
+            class="mb-1 hover:bg-gray-800 px-2 py-2 rounded transition-all"
+            :class="getLineClass(log)"
           >
-            <span
-              class="text-gray-500 mr-3 text-xs"
-              x-text="String(index + 1).padStart(4, '0')"
-            ></span>
-            <span x-html="formatLogLine(line)"></span>
+            <div class="flex flex-wrap items-center mb-1 gap-x-2 gap-y-1">
+              <span
+                class="text-gray-500 mr-3 text-xs"
+                x-text="String(index + 1).padStart(4, '0')"
+              ></span>
+              <span class="font-bold" x-text="log.level"></span>
+              <span
+                class="ml-2 text-xs text-gray-400"
+                x-text="log.timestamp || log.asctime || ''"
+              ></span>
+              <span
+                class="ml-2 text-gray-300"
+                x-text="log.module ? log.module + '.' : ''"
+              ></span>
+              <span
+                class="ml-1 text-gray-300"
+                x-text="log.function || ''"
+              ></span>
+              <span
+                class="ml-2 text-xs text-gray-500"
+                x-show="log.execution_time"
+                x-text="'⏱ ' + log.execution_time"
+              ></span>
+              <template x-if="log.pathname">
+                <span
+                  class="ml-2 truncate max-w-xs text-xs text-blue-300 bg-blue-900/30 px-2 py-0.5 rounded cursor-pointer"
+                  :title="log.pathname"
+                  x-text="log.pathname"
+                ></span>
+              </template>
+            </div>
+            <div class="text-white" x-text="log.message"></div>
+            <template x-if="log.exception">
+              <pre
+                class="text-red-300 bg-red-900/30 rounded p-2 mt-1 whitespace-pre-wrap"
+                x-text="log.exception"
+              ></pre>
+            </template>
           </div>
         </template>
       </div>
@@ -135,9 +308,104 @@
       autoRefresh: true,
       searchTerm: "",
       selectedLevel: "",
+      selectedPathname: "",
+      selectedModule: "",
+      selectedFunction: "",
+      selectedThread: "",
       lastUpdate: "Never",
       refreshInterval: null,
       logs: [],
+      showModuleOptions: false,
+      showFunctionOptions: false,
+      showPathnameOptions: false,
+      // Multi-select filter state
+      moduleInput: "",
+      selectedModules: [],
+      functionInput: "",
+      selectedFunctions: [],
+      pathnameInput: "",
+      selectedPathnames: [],
+      clearFilters() {
+        this.searchTerm = "";
+        this.selectedLevel = "";
+        this.moduleInput = "";
+        this.selectedModules = [];
+        this.functionInput = "";
+        this.selectedFunctions = [];
+        this.pathnameInput = "";
+        this.selectedPathnames = [];
+        this.selectedThread = "";
+      },
+      addModuleFilter() {
+        const val = this.moduleInput.trim();
+        if (val && !this.selectedModules.includes(val)) {
+          this.selectedModules.push(val);
+        }
+        this.moduleInput = "";
+        this.showModuleOptions = false;
+      },
+      removeModuleFilter(idx) {
+        this.selectedModules.splice(idx, 1);
+      },
+      addFunctionFilter() {
+        const val = this.functionInput.trim();
+        if (val && !this.selectedFunctions.includes(val)) {
+          this.selectedFunctions.push(val);
+        }
+        this.functionInput = "";
+        this.showFunctionOptions = false;
+      },
+      removeFunctionFilter(idx) {
+        this.selectedFunctions.splice(idx, 1);
+      },
+      addPathnameFilter() {
+        const val = this.pathnameInput.trim();
+        if (val && !this.selectedPathnames.includes(val)) {
+          this.selectedPathnames.push(val);
+        }
+        this.pathnameInput = "";
+        this.showPathnameOptions = false;
+      },
+      removePathnameFilter(idx) {
+        this.selectedPathnames.splice(idx, 1);
+      },
+      get moduleOptions() {
+        // Unique, sorted list of modules
+        return [
+          ...new Set(this.logs.map((l) => l.module).filter(Boolean)),
+        ].sort();
+      },
+      get filteredModuleOptions() {
+        if (!this.selectedModule) return this.moduleOptions;
+        const search = this.selectedModule.toLowerCase();
+        return this.moduleOptions.filter((opt) =>
+          opt.toLowerCase().includes(search),
+        );
+      },
+      get functionOptions() {
+        return [
+          ...new Set(this.logs.map((l) => l.function).filter(Boolean)),
+        ].sort();
+      },
+      get filteredFunctionOptions() {
+        if (!this.selectedFunction) return this.functionOptions;
+        const search = this.selectedFunction.toLowerCase();
+        return this.functionOptions.filter((opt) =>
+          opt.toLowerCase().includes(search),
+        );
+      },
+      get pathnameOptions() {
+        return [
+          ...new Set(this.logs.map((l) => l.pathname).filter(Boolean)),
+        ].sort();
+      },
+      get filteredPathnameOptions() {
+        if (!this.selectedPathname) return this.pathnameOptions;
+        const search = this.selectedPathname.toLowerCase();
+        return this.pathnameOptions.filter((opt) =>
+          opt.toLowerCase().includes(search),
+        );
+      },
 
       init() {
         this.loadLogs();
@@ -149,43 +417,92 @@
           const response = await fetch("/logs/get_content");
           if (response.ok) {
             const data = await response.json();
-            this.logs = data.content.slice().reverse();
+            // Parse each log line as JSON, fallback to string if parse fails
+            this.logs = data.content
+              .slice()
+              .reverse()
+              .map((line) => {
+                try {
+                  return JSON.parse(line);
+                } catch {
+                  return { level: "RAW", message: line };
+                }
+              });
             this.updateTimestamp();
           } else {
-            this.logs = [`Error: Failed to load logs (${response.status})`];
+            this.logs = [
+              {
+                level: "ERROR",
+                message: `Failed to load logs (${response.status})`,
+              },
+            ];
           }
         } catch (error) {
-          this.logs = [`Error: ${error.message}`];
+          this.logs = [{ level: "ERROR", message: error.message }];
         }
       },
 
       get filteredLogs() {
         let filtered = this.logs;
-
         // Filter by search term
         if (this.searchTerm) {
           const search = this.searchTerm.toLowerCase();
-          filtered = filtered.filter((line) =>
-            line.toLowerCase().includes(search)
-          );
+          filtered = filtered.filter((log) => {
+            return Object.values(log).some(
+              (val) =>
+                typeof val === "string" && val.toLowerCase().includes(search),
+            );
+          });
         }
-
         // Filter by level
         if (this.selectedLevel) {
-          filtered = filtered.filter((line) =>
-            line.includes(this.selectedLevel)
+          filtered = filtered.filter((log) => log.level === this.selectedLevel);
+        }
+        // Multi-select: module
+        if (this.selectedModules.length > 0) {
+          filtered = filtered.filter(
+            (log) => log.module && this.selectedModules.includes(log.module),
           );
         }
-
+        // Multi-select: function
+        if (this.selectedFunctions.length > 0) {
+          filtered = filtered.filter(
+            (log) =>
+              log.function && this.selectedFunctions.includes(log.function),
+          );
+        }
+        // Multi-select: pathname
+        if (this.selectedPathnames.length > 0) {
+          filtered = filtered.filter(
+            (log) =>
+              log.pathname && this.selectedPathnames.includes(log.pathname),
+          );
+        }
+        // Filter by thread (single)
+        if (this.selectedThread) {
+          const threadSearch = this.selectedThread.toLowerCase();
+          filtered = filtered.filter(
+            (log) =>
+              log.thread && log.thread.toLowerCase().includes(threadSearch),
+          );
+        }
         return filtered;
       },
 
       getLineClass(line) {
-        if (line.includes("ERROR")) return "text-red-400";
-        if (line.includes("WARNING")) return "text-yellow-400";
-        if (line.includes("INFO")) return "text-blue-400";
-        if (line.includes("DEBUG")) return "text-gray-400";
-        return "text-green-400";
+        if (!line.level) return "text-green-400";
+        switch (line.level) {
+          case "ERROR":
+            return "text-red-400 bg-red-900/20";
+          case "WARNING":
+            return "text-yellow-400 bg-yellow-900/20";
+          case "INFO":
+            return "text-blue-400 bg-blue-900/20";
+          case "DEBUG":
+            return "text-gray-400 bg-gray-900/20";
+          default:
+            return "text-green-400";
+        }
       },
 
       startAutoRefresh() {
@@ -213,10 +530,21 @@
       },
 
       formatLogLine(line) {
-        // Decode HTML entities and preserve formatting
-        const textarea = document.createElement("textarea");
-        textarea.innerHTML = line;
-        return textarea.value;
+        // Render structured log fields
+        if (line.level === "RAW" || typeof line !== "object") {
+          return `<span>${line.message || line}</span>`;
+        }
+        let html = `<span class='font-bold'>${line.level}</span> `;
+        html += `<span class='text-xs text-gray-400'>${line.timestamp || line.asctime || ""}</span> `;
+        html += `<span class='text-gray-300'>${line.logger ? line.logger + " | " : ""}${line.module ? line.module + "." : ""}${line.function ? line.function : ""}</span> `;
+        html += `<span class='block text-white'>${line.message}</span>`;
+        if (line.exception) {
+          html += `<pre class='text-red-300 bg-red-900/30 rounded p-2 mt-1 whitespace-pre-wrap'>${line.exception}</pre>`;
+        }
+        if (line.execution_time) {
+          html += `<span class='text-xs text-gray-500 ml-2'>⏱ ${line.execution_time}</span>`;
+        }
+        return html;
       },
     };
   }
