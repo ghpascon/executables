@@ -2,7 +2,7 @@ from app.db import setup_database
 from smartx_rfid.db import DatabaseManager
 from smartx_rfid.webhook import WebhookManager, WebhookXtrack
 import logging
-from app.models import Tag, Event
+from app.models.rfid import Tag, Event
 from app.core import settings
 import asyncio
 from app.core import Indicator
