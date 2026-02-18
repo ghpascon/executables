@@ -17,8 +17,7 @@ except ImportError:
 	DeclarativeBase = declarative_base()
 
 # Import all model modules to ensure they're registered
-from .mixin import BaseMixin, Base  # noqa: F401
-from .rfid import Event, Tag  # noqa: F401
+from smartx_rfid.models import Base, BaseMixin
 
 
 def get_all_models() -> List[Type]:
