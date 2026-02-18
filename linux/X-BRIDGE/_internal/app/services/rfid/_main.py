@@ -2,7 +2,6 @@ import logging
 from smartx_rfid.devices import DeviceManager
 from smartx_rfid.utils import TagList
 from .integration import Integration
-import asyncio
 from app.core import settings
 from .controller import Controller
 
@@ -63,12 +62,6 @@ class RfidManager:
 
 			self.controller.on_event(name=name, event_type=event_type, event_data=event_data)
 
-			asyncio.create_task(
-				self.integration.on_event_integration(
-					name=name, event_type=event_type, event_data=event_data
-				)
-			)
-
 	def on_tag(self, name: str, tag_data: dict):
 		new_tag, tag = self.tags.add(tag_data, device=name)
 
@@ -76,8 +69,6 @@ class RfidManager:
 		if new_tag:
 			logging.info(f'[ TAG ] {name} - Tag Data: {tag}')
 			self.controller.on_new_tag(tag=tag)
-			# Integrate new tag
-			asyncio.create_task(self.integration.on_tag_integration(tag=tag))
 
 		# EXISTING TAG
 		elif tag is not None:
