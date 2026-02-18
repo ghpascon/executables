@@ -7,14 +7,9 @@ with proper indexing and relationships.
 
 from sqlalchemy import DateTime, func
 
-try:
-	from sqlalchemy import Column, Index, Integer, String, Text, UniqueConstraint
-except ImportError as e:
-	raise ImportError(
-		'SQLAlchemy is required. Please install it with: pip install sqlalchemy'
-	) from e
+from sqlalchemy import Column, Index, Integer, String, Text
 
-from .mixin import Base, BaseMixin
+from smartx_rfid.models import Base, BaseMixin
 
 
 class Tag(Base, BaseMixin):
@@ -41,32 +36,14 @@ class Tag(Base, BaseMixin):
 	ant = Column(Integer, nullable=True)
 	rssi = Column(Integer, nullable=True)
 
-	# timestamps
-	created_at = Column(
-		DateTime(timezone=True),
-		server_default=func.now(),
-		nullable=False,
-	)
-
-	updated_at = Column(
-		DateTime(timezone=True),
-		server_default=func.now(),
-		onupdate=func.now(),
-		nullable=False,
-	)
-
 	# Indexes for optimal query performance
 	__table_args__ = (
 		# Composite index for device + epc (most common query pattern)
 		Index('ix_tags_device_epc', 'device', 'epc'),
 		# Individual indexes
 		Index('ix_tags_device', 'device'),
-		Index('ix_tags_created_at', 'created_at'),
 		Index('ix_tags_tid', 'tid'),
 		Index('ix_tags_epc', 'epc'),
-		# Unique constraint for device+epc+created_at to prevent exact duplicates
-		# within the same second (adjust based on business requirements)
-		UniqueConstraint('device', 'epc', 'created_at', name='uq_tags_device_epc_time'),
 	)
 
 
