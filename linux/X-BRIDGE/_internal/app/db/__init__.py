@@ -4,7 +4,6 @@ from app.models import get_all_models
 
 
 def setup_database(database_url: str = None) -> DatabaseManager:
-	logging.info(f"{'='*60}")
 	logging.info('Initializing DatabaseManager')
 	db_manager = DatabaseManager(database_url=database_url, echo=True, pool_size=5, pool_timeout=30)
 

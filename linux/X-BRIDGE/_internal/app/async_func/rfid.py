@@ -63,7 +63,6 @@ async def clear_db():
 		tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
 		seconds_until_midnight = (tomorrow - now).total_seconds()
 
-		logging.info(f"{'='*60}")
 		logging.info('CLEAR DATABASE')
 
 		# Validation
@@ -118,4 +117,3 @@ async def clear_db():
 					session.rollback()
 
 		logging.info('Database cleanup completed.')
-		logging.info(f"{'='*60}")

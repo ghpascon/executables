@@ -9,7 +9,6 @@ from .controller import Controller
 
 class RfidManager:
 	def __init__(self, devices_path: str, example_path: str = ''):
-		logging.info(f"{'='*60}")
 		logging.info('Initializing RfidManager')
 
 		# TAGS
@@ -24,7 +23,9 @@ class RfidManager:
 		self.integration = Integration()
 
 		# CONTROLLER
-		self.controller = Controller(devices=self.devices, tags=self.tags)
+		self.controller = Controller(
+			devices=self.devices, tags=self.tags, integration=self.integration
+		)
 
 		logging.info(f"{'='*20} RfidManager initialized {'='*20}")
 
@@ -60,6 +61,8 @@ class RfidManager:
 			if event_type == 'reading':
 				self.on_start(name=name) if event_data else self.on_stop(name=name)
 
+			self.controller.on_event(name=name, event_type=event_type, event_data=event_data)
+
 			asyncio.create_task(
 				self.integration.on_event_integration(
 					name=name, event_type=event_type, event_data=event_data
@@ -72,17 +75,20 @@ class RfidManager:
 		# NEW TAG
 		if new_tag:
 			logging.info(f'[ TAG ] {name} - Tag Data: {tag}')
+			self.controller.on_new_tag(tag=tag)
 			# Integrate new tag
 			asyncio.create_task(self.integration.on_tag_integration(tag=tag))
 
 		# EXISTING TAG
 		elif tag is not None:
-			pass
+			self.controller.on_existing_tag(tag=tag)
 		return tag is not None
 
 	def on_start(self, name: str):
 		logging.info(f'[ START ] {name}')
 		self.tags.remove_tags_by_device(device=name)
+		self.controller.on_start(device=name)
 
 	def on_stop(self, name: str):
 		logging.info(f'[ STOP ] {name}')
+		self.controller.on_stop(device=name)
