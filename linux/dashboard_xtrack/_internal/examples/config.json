@@ -1,0 +1,12 @@
+{
+  "TITLE": "SMARTX",
+  "LOG_PATH": "C:/Users/DELL/Desktop/Logs",
+  "STORAGE_DAYS": 7,
+  "OPEN_BROWSER": false,
+  "_DATABASE_URL_MYSQL": "mysql+pymysql://root:admin@localhost:3306/lib_smtx",
+  "_DATABASE_URL_SQLITE": "sqlite:///lib_smtx.db",
+  "_DATABASE_URL_POSTGRESQL": "postgresql+psycopg2://app_user:app_password@localhost:5432/lib_smartx",
+  "DATABASE_URL": "sqlite:///lib_smtx.db",
+  "XTRACK_URL": "http://shopee.smtx.com.br:6102/req",
+  "PORT": 6000
+}
