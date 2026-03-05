@@ -1,19 +1,22 @@
 import inspect
 import logging
 import sys
+from fastapi import FastAPI
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
+from app.services.license import license_manager
+from fastapi.responses import RedirectResponse
 
 # =====================
 #  AUTO-REGISTRATION
 # =====================
 
 
-def setup_middlewares(app):
+def setup_middlewares(app: FastAPI):
 	"""Automatically register all BaseHTTPMiddleware subclasses defined in this module"""
 
 	# CORS middleware
@@ -59,3 +62,28 @@ class SafeRequestMiddleware(BaseHTTPMiddleware):
 					'path': request.url.path,
 				},
 			)
+
+
+class LicenseValidationMiddleware(BaseHTTPMiddleware):
+	"""
+	Middleware that checks for a valid license before processing any request.
+	If the license is invalid, it returns a 403 Forbidden response.
+	"""
+
+	async def dispatch(self, request, call_next):
+		is_valid = license_manager.validate_license()
+		path = request.url.path
+		valid_path = path.startswith('/static') or '/license' in path
+		if valid_path:
+			return await call_next(request)
+		if path.startswith('/api'):
+			if not is_valid:
+				return JSONResponse(
+					status_code=403,
+					content={'message': 'Invalid or missing license. Access denied.'},
+				)
+		else:
+			if not is_valid:
+				logging.warning(f'License validation failed for request to {request.url.path}')
+				return RedirectResponse(url='/license')
+		return await call_next(request)

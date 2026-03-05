@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: smartx-rfid
-Version: 5.1.1
+Version: 6.2.3
 Summary: SmartX RFID library
 License: MIT
 License-File: LICENSE
@@ -17,11 +17,15 @@ Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
 Classifier: Programming Language :: Python :: 3.14
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Dist: argon2-cffi (>=25.1.0,<26.0.0)
 Requires-Dist: bleak (>=1.1.1,<2.0.0)
+Requires-Dist: cryptography (>=46.0.5,<47.0.0)
+Requires-Dist: dotenv (>=0.9.9,<0.10.0)
 Requires-Dist: httpx (==0.28.1)
 Requires-Dist: psycopg2 (>=2.9.11,<3.0.0)
 Requires-Dist: pydantic (>=2.12.5,<3.0.0)
 Requires-Dist: pyepc (==0.5.0)
+Requires-Dist: pyjwt (>=2.11.0,<3.0.0)
 Requires-Dist: pymysql (==1.1.1)
 Requires-Dist: pyserial (==3.5)
 Requires-Dist: pyserial-asyncio (==0.6)
