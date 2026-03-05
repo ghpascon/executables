@@ -51,3 +51,12 @@ async def gtin(request: Request):
 		{'request': request, 'title': settings.TITLE, 'alerts': [], 'table': 'gtin'},
 		media_type='text/html; charset=utf-8',
 	)
+
+
+@router.get('/license', response_class=HTMLResponse)
+async def license(request: Request):
+	return templates.TemplateResponse(
+		'pages/license/main.html',
+		{'request': request, 'title': 'License', 'alerts': []},
+		media_type='text/html; charset=utf-8',
+	)

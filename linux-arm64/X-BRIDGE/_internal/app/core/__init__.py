@@ -15,6 +15,7 @@ TEMPLATES_PATH = get_frozen_path('app/templates')
 DEVICES_PATH = f'{FILES_PATH}/devices'
 ICON_PATH = get_frozen_path('app/static/icons/logo.ico')
 EXAMPLE_PATH = get_frozen_path('examples')
+LICENSE_PATH = get_frozen_path('license_files')
 
 ##CONFIG APLICATION
 # settings
