@@ -47,6 +47,7 @@
       </div>
     </div>
   </div>
+
   <!-- Movimentações à direita -->
   <div class="w-full max-w-lg mx-auto md:mx-0 md:w-1/2">
     <div class="w-full flex flex-row items-center justify-between mb-8">
@@ -66,12 +67,6 @@
           <span class="font-semibold text-base mb-1">Movimentações hoje</span>
           <span id="movements-today" class="text-3xl font-bold mt-1">-</span>
         </div>
-      </div>
-      <div>
-        <div
-          id="movements-by-location-list"
-          class="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2"
-        ></div>
       </div>
     </div>
   </div>
@@ -136,29 +131,6 @@
         data.movements_count;
       document.getElementById("movements-today").textContent =
         data.movements_today;
-      const movList = document.getElementById("movements-by-location-list");
-      movList.innerHTML = "";
-      // Junta todas as localidades presentes em entradas ou saídas
-      const allLocs = new Set([
-        ...Object.keys(data.movements_entries_today || {}),
-        ...Object.keys(data.movements_exits_today || {}),
-      ]);
-      for (const loc of allLocs) {
-        const label = loc === "null" ? "(Sem local)" : loc;
-        const entradas =
-          (data.movements_entries_today && data.movements_entries_today[loc]) ||
-          0;
-        const saidas =
-          (data.movements_exits_today && data.movements_exits_today[loc]) || 0;
-        const card = document.createElement("div");
-        card.className =
-          "bg-white border border-[#90CAF9] rounded-xl px-6 py-3 flex flex-row items-center shadow-sm";
-        card.innerHTML = `
-          <span class=\"flex-1 text-[#1976D2] font-semibold text-base\">${label}</span>
-          <span class=\"text-xl font-bold ml-2\"><span style=\"color:#388e3c\">+${entradas}</span> <span style=\"color:#d32f2f\">-${saidas}</span></span>
-        `;
-        movList.appendChild(card);
-      }
     } catch (e) {
       document.getElementById("locations-count").textContent = "-";
       document.getElementById("objects-count").textContent = "-";
