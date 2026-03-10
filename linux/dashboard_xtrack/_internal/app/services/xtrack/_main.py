@@ -143,6 +143,8 @@ class XtackManager:
 						'last_modified': parse_dt(obj.get('LAST_MODIFIED')),
 						'last_location': parse_dt(obj.get('LAST_LOCATION')),
 					}
+					if not new_data.get("description").lower().startswith("fb"):
+						continue
 
 					db_obj = existing_map.get(idcode)
 					if not db_obj:
@@ -197,7 +199,7 @@ class XtackManager:
 					loc.name: session.query(Objects).filter(Objects.location_id == loc.id).count()
 					for loc in session.query(Locations).all()
 				}
-				objects_in_locations = {k: v for k, v in objects_in_locations.items() if v > 0}
+				objects_in_locations = {k: v for k, v in objects_in_locations.items() if k is not None and k.startswith("[")}
 				movements_count = session.query(Movements).count()
 				movements_today = (
 					session.query(Movements)
@@ -216,7 +218,7 @@ class XtackManager:
 					for loc in session.query(Locations).all()
 				}
 				movements_entries_today = {
-					k: v for k, v in movements_entries_today.items() if v > 0
+					k: v for k, v in movements_entries_today.items() 
 				}
 
 				movements_exits_today = {
