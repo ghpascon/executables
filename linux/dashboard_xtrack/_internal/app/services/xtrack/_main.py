@@ -143,7 +143,7 @@ class XtackManager:
 						'last_modified': parse_dt(obj.get('LAST_MODIFIED')),
 						'last_location': parse_dt(obj.get('LAST_LOCATION')),
 					}
-					if not new_data.get("description").lower().startswith("fb"):
+					if not new_data.get('description').lower().startswith('fb'):
 						continue
 
 					db_obj = existing_map.get(idcode)
@@ -199,7 +199,11 @@ class XtackManager:
 					loc.name: session.query(Objects).filter(Objects.location_id == loc.id).count()
 					for loc in session.query(Locations).all()
 				}
-				objects_in_locations = {k: v for k, v in objects_in_locations.items() if k is not None and k.startswith("[")}
+				objects_in_locations = {
+					k: v
+					for k, v in objects_in_locations.items()
+					if k is not None and k.startswith('[')
+				}
 				movements_count = session.query(Movements).count()
 				movements_today = (
 					session.query(Movements)
@@ -217,9 +221,7 @@ class XtackManager:
 					.count()
 					for loc in session.query(Locations).all()
 				}
-				movements_entries_today = {
-					k: v for k, v in movements_entries_today.items() 
-				}
+				movements_entries_today = {k: v for k, v in movements_entries_today.items()}
 
 				movements_exits_today = {
 					loc.name: session.query(Movements)
@@ -228,6 +230,14 @@ class XtackManager:
 					for loc in session.query(Locations).all()
 				}
 				movements_exits_today = {k: v for k, v in movements_exits_today.items() if v > 0}
+				# AVAILABLE
+				available_in_almox = objects_in_locations.get(
+					'[ALMOX] Entrada', 0
+				) + objects_in_locations.get('[ALMOX] Saida', 0)
+				available_in_artur_alvin = objects_in_locations.get(
+					'[Artur Alvim] Recebimento', 0
+				) + objects_in_locations.get('[Artur Alvim] Expedicao', 0)
+
 				return True, {
 					'xtrack_url': self.api.base_url,
 					'locations_count': locations_count,
@@ -237,6 +247,8 @@ class XtackManager:
 					'movements_today': movements_today,
 					'movements_entries_today': movements_entries_today,
 					'movements_exits_today': movements_exits_today,
+					'available_in_almox': available_in_almox,
+					'available_in_artur_alvin': available_in_artur_alvin,
 				}
 			except Exception as e:
 				logging.error(f'Error getting Xtrack info: {e}')

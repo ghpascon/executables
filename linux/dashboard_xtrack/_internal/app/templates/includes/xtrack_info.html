@@ -35,7 +35,7 @@
         class="bg-[#FF5722] border border-[#FFAB91] text-white rounded-2xl px-8 py-6 flex flex-col items-center shadow-md mb-6"
       >
         <span class="font-semibold text-xl mb-2"
-          >Total de malotes em estoque</span
+          >Total de Sacas em estoque</span
         >
         <span id="objects-count" class="text-5xl font-bold mt-1">-</span>
       </div>
@@ -66,6 +66,30 @@
         >
           <span class="font-semibold text-base mb-1">Movimentações hoje</span>
           <span id="movements-today" class="text-3xl font-bold mt-1">-</span>
+        </div>
+      </div>
+      <!-- Disponíveis -->
+      <div class="w-full flex flex-row items-center justify-between mb-8">
+        <h2 class="text-2xl font-bold text-[#388E3C]">Disponíveis</h2>
+      </div>
+      <div class="flex flex-row gap-4 mt-4">
+        <div
+          class="flex-1 bg-[#C8E6C9] border border-[#A5D6A7] text-[#388E3C] rounded-2xl px-8 py-6 flex flex-col items-center shadow-md"
+        >
+          <span class="font-semibold text-base mb-1"
+            >Sacas para uso Guarulhos</span
+          >
+          <span id="available-in-almox" class="text-3xl font-bold mt-1">-</span>
+        </div>
+        <div
+          class="flex-1 bg-[#C8E6C9] border border-[#A5D6A7] text-[#388E3C] rounded-2xl px-8 py-6 flex flex-col items-center shadow-md"
+        >
+          <span class="font-semibold text-base mb-1"
+            >Sacas para uso Artur Alvim</span
+          >
+          <span id="available-in-artur-alvin" class="text-3xl font-bold mt-1"
+            >-</span
+          >
         </div>
       </div>
     </div>
@@ -131,6 +155,11 @@
         data.movements_count;
       document.getElementById("movements-today").textContent =
         data.movements_today;
+      // Disponíveis
+      document.getElementById("available-in-almox").textContent =
+        data.available_in_almox;
+      document.getElementById("available-in-artur-alvin").textContent =
+        data.available_in_artur_alvin;
     } catch (e) {
       document.getElementById("locations-count").textContent = "-";
       document.getElementById("objects-count").textContent = "-";
