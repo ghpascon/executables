@@ -194,7 +194,6 @@ class XtackManager:
 		with self.db_manager.get_session() as session:
 			try:
 				locations_count = session.query(Locations).count()
-				objects_count = session.query(Objects).count()
 				objects_in_locations = {
 					loc.name: session.query(Objects).filter(Objects.location_id == loc.id).count()
 					for loc in session.query(Locations).all()
@@ -204,6 +203,10 @@ class XtackManager:
 					for k, v in objects_in_locations.items()
 					if k is not None and k.startswith('[')
 				}
+				# Ordena por ordem alfabética das chaves
+				objects_in_locations = dict(sorted(objects_in_locations.items()))
+				objects_count = sum(objects_in_locations.values())
+
 				movements_count = session.query(Movements).count()
 				movements_today = (
 					session.query(Movements)
