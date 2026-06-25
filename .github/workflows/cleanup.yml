@@ -2,7 +2,7 @@ name: Cleanup inactive folders
 
 on:
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 0 * * 6"
   workflow_dispatch:
 
 permissions:
