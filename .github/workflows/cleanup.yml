@@ -2,7 +2,7 @@ name: Cleanup inactive folders
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -13,61 +13,51 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Cleanup
+      - name: Cleanup old files (keep README.md)
         shell: bash
         run: |
-          set -Eeuo pipefail
+          set -euo pipefail
 
           DAYS=30
           NOW=$(date +%s)
 
-          echo "Removendo arquivos de diretórios inativos há mais de ${DAYS} dias..."
+          echo "Analisando diretórios..."
 
-          find . \
-            -path "./.git" -prune -o \
-            -type d -print | while read -r dir; do
-
-            # Ignora diretório raiz
+          # percorre diretórios sem usar prune/delete juntos
+          while IFS= read -r dir; do
             [[ "$dir" == "." ]] && continue
 
-            # Último commit que alterou algo dentro da pasta
             LAST_COMMIT=$(git log -1 --format=%ct -- "$dir" 2>/dev/null || true)
-
-            # Diretórios sem histórico são ignorados
             [[ -z "$LAST_COMMIT" ]] && continue
 
             AGE=$(( (NOW - LAST_COMMIT) / 86400 ))
 
             if (( AGE > DAYS )); then
-              echo "[$AGE dias] Limpando: $dir"
+              echo "Limpando $dir ($AGE dias)"
 
-              find "$dir" \
-                -type f \
-                ! -name "README.md" \
-                -delete
+              find "$dir" -type f ! -name "README.md" -exec rm -f {} +
             fi
-          done
 
-          echo
-          echo "Removendo diretórios vazios..."
+          done < <(find . -type d)
 
-          # Repete até não existirem mais diretórios vazios
+      - name: Remove empty directories
+        run: |
+          set -euo pipefail
+
           while true; do
-            COUNT=$(find . \
-              -path "./.git" -prune -o \
-              -type d -empty -print | wc -l)
+            EMPTY_DIRS=$(find . -type d -empty)
 
-            [[ "$COUNT" -eq 0 ]] && break
+            if [[ -z "$EMPTY_DIRS" ]]; then
+              break
+            fi
 
-            find . \
-              -path "./.git" -prune -o \
-              -type d -empty \
-              -delete
+            echo "$EMPTY_DIRS" | while read -r d; do
+              rm -rf "$d"
+            done
           done
 
       - name: Commit changes
@@ -78,9 +68,9 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "Nenhuma alteração."
+            echo "Nenhuma alteração"
             exit 0
           fi
 
-          git commit -m "chore: cleanup inactive folders"
+          git commit -m "cleanup: remove inactive files/folders"
           git push
