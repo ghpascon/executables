@@ -1,0 +1,32 @@
+{% extends "base.html" %} {% block content %}
+<div
+  id="logs"
+  style="
+    white-space: pre-wrap;
+    padding: 10px;
+    max-height: 75vh;
+    overflow: auto;
+    font-size: 1.5rem;
+  "
+></div>
+
+<script>
+  const logDiv = document.getElementById("logs");
+
+  async function updateLogs() {
+    try {
+      const response = await fetch("{{ url_for('get_logs') }}");
+      if (!response.ok) throw new Error("Erro ao buscar logs");
+      const logs = await response.json();
+      // Mostra em ordem normal (mais antigos em cima)
+      logDiv.textContent = logs.slice().join("\n");
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  // Atualiza a cada 1 segundo
+  setInterval(updateLogs, 1000);
+  updateLogs(); // primeira atualização imediata
+</script>
+{% endblock %}

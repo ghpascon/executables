@@ -1,0 +1,71 @@
+<div class="card card-body shadow">
+  <div class="d-flex flex-wrap gap-2">
+    <div id="tags_count" style="font-weight: bold; font-size: 1.5rem"></div>
+
+    {# separador #}
+    <div class="vr"></div>
+
+    {# CLEAR TAGS #}
+
+    <form
+      action="{{ url_for('clear_all_tags') }}"
+      method="POST"
+      target="hidden_iframe"
+    >
+      <button type="submit" class="btn btn-warning">CLEAR ALL TAGS</button>
+    </form>
+
+    {# separador #}
+    <div class="vr"></div>
+
+    {# device list #} {% for device in device_list() %}
+    <div class="d-flex flex-column align-items-start me-3">
+      <!-- Botão que controla a div colapsável -->
+      <button
+        class="btn btn-primary device-btn"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#actions_{{ device|replace(' ', '_') }}"
+        aria-expanded="false"
+        aria-controls="actions_{{ device|replace(' ', '_') }}"
+        onclick="setActiveButton(this)"
+        id="toggle-btn-{{ device|replace(' ', '_') }}"
+      >
+        {{ device }}
+      </button>
+    </div>
+
+    <!-- Div colapsável referente a este device -->
+    <div
+      class="collapse mt-2 w-100"
+      id="actions_{{ device|replace(' ', '_') }}"
+    >
+      {% with device=device %} {% include "index/partials/reader.html" %} {%
+      endwith %}
+    </div>
+
+    {% endfor %}
+    <!-- Gerenciar Usuários 👥 -->
+    <a href="{{ url_for('users_page') }}" class="btn btn-primary"
+      >👥 Gerenciar Usuários</a
+    >
+  </div>
+</div>
+<script>
+  const countCard = document.getElementById("tags_count");
+
+  async function updateTagsCount() {
+    try {
+      const response = await fetch("{{ url_for('get_tags_count') }}");
+      if (!response.ok) throw new Error("Erro ao buscar contador");
+      const data = await response.json();
+      countCard.textContent = `Total Tags: ${data.count}`;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  setInterval(updateTagsCount, 500);
+
+  updateTagsCount();
+</script>

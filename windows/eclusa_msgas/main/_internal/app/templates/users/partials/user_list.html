@@ -1,0 +1,133 @@
+<div class="card shadow">
+  <div class="card-header bg-primary text-white">
+    <h5 class="mb-0">
+      👥 Lista de Usuários
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-light float-end"
+        onclick="loadUsers()"
+        title="Recarregar lista"
+      >
+        🔄 Atualizar
+      </button>
+    </h5>
+  </div>
+  <div class="card-body">
+    <div id="users-content">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover">
+          <thead class="table-dark">
+            <tr>
+              <th>#</th>
+              <th>ID do Usuário</th>
+              <th>ID do Cartão</th>
+              <th class="text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="users-table-body">
+            <!-- Users will be loaded here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="users-error" class="alert alert-danger" style="display: none">
+      <strong>Erro!</strong> <span id="error-message"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Load users when page loads
+  document.addEventListener("DOMContentLoaded", function () {
+    loadUsers();
+  });
+
+  // Load users function
+  async function loadUsers() {
+    const content = document.getElementById("users-content");
+    const error = document.getElementById("users-error");
+    const tableBody = document.getElementById("users-table-body");
+
+    content.style.display = "none";
+    error.style.display = "none";
+
+    try {
+      const response = await fetch('{{ url_for("get_all_users") }}');
+      const result = await response.json();
+
+      content.style.display = "block";
+
+      tableBody.innerHTML = "";
+
+      if (result.users && result.users.length > 0) {
+        result.users.forEach((user, index) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td><strong>${escapeHtml(user.user_id)}</strong></td>
+                    <td><strong>${escapeHtml(user.card_id)}</strong></td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-warning me-1" 
+                                onclick="editUser('${escapeHtml(
+                                  user.user_id
+                                )}', '${escapeHtml(user.card_id)}')" 
+                                title="Editar">✏️</button>
+                        <button class="btn btn-sm btn-outline-danger" 
+                                onclick="deleteUser('${escapeHtml(
+                                  user.user_id
+                                )}')" 
+                                title="Excluir">🗑️</button>
+                    </td>
+                `;
+          tableBody.appendChild(row);
+        });
+      } else {
+        tableBody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-4">
+                        📭<br>Nenhum usuário cadastrado<br>
+                        <small>Clique em "Adicionar Novo Usuário" para começar</small>
+                    </td>
+                </tr>
+            `;
+      }
+    } catch (error) {
+      error.style.display = "block";
+      document.getElementById("error-message").textContent = error.message;
+    }
+  }
+
+  // Delete user function
+  async function deleteUser(userId) {
+    if (
+      !confirm(
+        `Tem certeza que deseja excluir o usuário "${userId}"?\n\nEsta ação não pode ser desfeita.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `{{ url_for("delete_user") }}?user_id=${encodeURIComponent(userId)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (response.ok) {
+        loadUsers(); // Reload user list
+      }
+    } catch (error) {
+      console.error("Erro ao excluir usuário:", error);
+    }
+  }
+
+  // Utility function to escape HTML
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+</script>
