@@ -1,0 +1,95 @@
+<div style="width: 100%; margin-left: 15px;">
+    <button class="btn btn-warning mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#formCollapse" aria-expanded="false" aria-controls="formCollapse">
+        Write EPC
+    </button>
+    
+    <div class="collapse" id="formCollapse">
+        <div class="card card-body">
+            <form id="writeTagForm" action="/rfid/write_epc" method="POST">
+                <div class="mb-3">
+                    <label for="target_identifier" class="form-label">Target Identifier</label>
+                    <select class="form-select" id="target_identifier" name="target_identifier" required>
+                        <option value="None">None</option>
+                        <option value="epc">EPC</option>
+                        <option value="tid">TID</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="target_value" class="form-label">Target Value (24 chars)</label>
+                    <select class="form-select" id="target_value" name="target_value" disabled>
+                        <option value="None">None</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="new_epc" class="form-label">New EPC (24 hex chars)</label>
+                    <input type="text" class="form-control hex-input" id="new_epc" name="new_epc" required minlength="24" maxlength="24">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password (8 hex chars)</label>
+                    <input type="text" class="form-control hex-input" id="password" name="password" required minlength="8" maxlength="8">
+                </div>
+                
+                <button type="submit" class="btn btn-success">Write</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const hexRegex = /^[0-9A-F]+$/;
+    
+    document.querySelectorAll('.hex-input').forEach(input => {
+        input.addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9A-Fa-f]/g, '').toUpperCase();
+        });
+    });
+    
+    document.getElementById('target_identifier').addEventListener('click', function() {
+        const targetValueSelect = document.getElementById('target_value');
+        const identifier = this.value;
+        
+        if (identifier === 'None' || identifier === '') {
+            targetValueSelect.innerHTML = '<option value="None">None</option>';
+            targetValueSelect.disabled = true;
+            return;
+        }
+        
+        const colIndex = Array.from(document.querySelectorAll('#tags-header th'))
+        .findIndex(th => th.textContent.toLowerCase() === identifier);
+        
+        let optionsHtml = '';
+        
+        if (colIndex === -1) {
+            targetValueSelect.innerHTML = '<option value="">No HEX values found</option>';
+            targetValueSelect.disabled = false;
+            return;
+        }
+        
+        const rows = document.querySelectorAll('#tags-body tr');
+        const values = new Set();
+        
+        rows.forEach(row => {
+            const cell = row.querySelectorAll('td')[colIndex];
+            if (cell) {
+                const val = cell.textContent.trim().toUpperCase();
+                if (val && hexRegex.test(val)) {
+                    values.add(val);
+                }
+            }
+        });
+        
+        if (values.size > 0) {
+            values.forEach(val => {
+                optionsHtml += `<option value="${val}">${val}</option>`;
+            });
+        } else {
+            optionsHtml = '<option value="">No HEX values found</option>';
+        }
+        
+        targetValueSelect.innerHTML = optionsHtml;
+        targetValueSelect.disabled = false;
+    });
+</script>
