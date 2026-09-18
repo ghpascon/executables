@@ -1,3 +1,4 @@
+```yaml
 name: Cleanup inactive folders
 
 on:
@@ -27,9 +28,11 @@ jobs:
 
           echo "Analisando diretórios..."
 
-          # percorre diretórios sem usar prune/delete juntos
+          # Percorre diretórios, ignorando .git e .github
           while IFS= read -r dir; do
             [[ "$dir" == "." ]] && continue
+            [[ "$dir" == "./.git" || "$dir" == ./.git/* ]] && continue
+            [[ "$dir" == "./.github" || "$dir" == ./.github/* ]] && continue
 
             LAST_COMMIT=$(git log -1 --format=%ct -- "$dir" 2>/dev/null || true)
             [[ -z "$LAST_COMMIT" ]] && continue
@@ -39,29 +42,42 @@ jobs:
             if (( AGE > DAYS )); then
               echo "Limpando $dir ($AGE dias)"
 
-              find "$dir" -type f ! -name "README.md" -exec rm -f {} +
+              find "$dir" \
+                -type f \
+                ! -name "README.md" \
+                -delete
             fi
 
-          done < <(find . -type d)
+          done < <(
+            find . \
+              -type d \
+              ! -path "./.git" \
+              ! -path "./.git/*" \
+              ! -path "./.github" \
+              ! -path "./.github/*"
+          )
 
       - name: Remove empty directories
+        shell: bash
         run: |
           set -euo pipefail
 
-          while true; do
-            EMPTY_DIRS=$(find . -type d -empty)
-
-            if [[ -z "$EMPTY_DIRS" ]]; then
-              break
-            fi
-
-            echo "$EMPTY_DIRS" | while read -r d; do
-              rm -rf "$d"
-            done
-          done
+          # Remove diretórios vazios, exceto .git e .github
+          find . \
+            -depth \
+            -type d \
+            -empty \
+            ! -path "./.git" \
+            ! -path "./.git/*" \
+            ! -path "./.github" \
+            ! -path "./.github/*" \
+            -delete
 
       - name: Commit changes
+        shell: bash
         run: |
+          set -euo pipefail
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -74,3 +90,4 @@ jobs:
 
           git commit -m "cleanup: remove inactive files/folders"
           git push
+```
