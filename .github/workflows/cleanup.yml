@@ -1,3 +1,4 @@
+```yaml
 name: Cleanup inactive folders
 
 on:
@@ -13,55 +14,113 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Cleanup old files (keep README.md)
+      - name: Cleanup inactive folders
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
 
           DAYS=30
-          NOW=$(date +%s)
+          CUTOFF=$(date -u -d "$DAYS days ago" '+%Y-%m-%dT%H:%M:%SZ')
+
+          echo "========================================"
+          echo "Cleanup de diretórios inativos"
+          echo "Data limite: $CUTOFF"
+          echo "========================================"
+
+          # Arquivo temporário contendo os diretórios que tiveram
+          # alguma alteração nos últimos DAYS dias.
+          ACTIVE_DIRS=$(mktemp)
+
+          echo "Buscando atividade recente..."
+
+          # Obtém commits recentes através da API do GitHub.
+          gh api \
+            --paginate \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/commits?since=${CUTOFF}&per_page=100" \
+            --jq '.[].sha' |
+          while read -r SHA; do
+
+            [[ -z "$SHA" ]] && continue
+
+            # Obtém os arquivos alterados naquele commit.
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/commits/$SHA" \
+              --jq '.files[].filename' 2>/dev/null |
+            while read -r FILE; do
+
+              [[ -z "$FILE" ]] && continue
+
+              # Ignora .github
+              [[ "$FILE" == .github/* ]] && continue
+
+              # Registra todos os diretórios pai do arquivo.
+              DIR=$(dirname "$FILE")
+
+              while [[ "$DIR" != "." && "$DIR" != "/" ]]; do
+                echo "$DIR" >> "$ACTIVE_DIRS"
+                DIR=$(dirname "$DIR")
+              done
+
+            done
+
+          done
+
+          # Remove duplicados.
+          sort -u "$ACTIVE_DIRS" -o "$ACTIVE_DIRS"
+
+          echo
+          echo "Diretórios ativos recentemente:"
+          cat "$ACTIVE_DIRS" || true
+          echo
 
           echo "Analisando diretórios..."
 
-          # Percorre diretórios, ignorando .git e .github
-          while IFS= read -r dir; do
-            [[ "$dir" == "." ]] && continue
-            [[ "$dir" == "./.git" || "$dir" == ./.git/* ]] && continue
-            [[ "$dir" == "./.github" || "$dir" == ./.github/* ]] && continue
+          # Percorre somente diretórios existentes no working tree.
+          find . \
+            -type d \
+            ! -path "./.git" \
+            ! -path "./.git/*" \
+            ! -path "./.github" \
+            ! -path "./.github/*" |
+          while IFS= read -r DIR; do
 
-            LAST_COMMIT=$(git log -1 --format=%ct -- "$dir" 2>/dev/null || true)
-            [[ -z "$LAST_COMMIT" ]] && continue
+            [[ "$DIR" == "." ]] && continue
 
-            AGE=$(( (NOW - LAST_COMMIT) / 86400 ))
+            # Remove ./ para comparar com os caminhos do GitHub.
+            REL_DIR="${DIR#./}"
 
-            if (( AGE > DAYS )); then
-              echo "Limpando $dir ($AGE dias)"
-
-              find "$dir" \
-                -type f \
-                ! -name "README.md" \
-                -delete
+            # Verifica se o diretório teve alguma atividade recente.
+            if grep -Fxq "$REL_DIR" "$ACTIVE_DIRS"; then
+              echo "Mantendo: $DIR"
+              continue
             fi
 
-          done < <(
-            find . \
-              -type d \
-              ! -path "./.git" \
-              ! -path "./.git/*" \
-              ! -path "./.github" \
-              ! -path "./.github/*"
-          )
+            echo "Inativo: $DIR"
+
+            # Remove arquivos, preservando README.md.
+            find "$DIR" \
+              -type f \
+              ! -name "README.md" \
+              -delete
+
+          done
+
+          rm -f "$ACTIVE_DIRS"
 
       - name: Remove empty directories
         shell: bash
         run: |
           set -euo pipefail
 
-          # Remove diretórios vazios, exceto .git e .github
           find . \
             -depth \
             -type d \
@@ -89,3 +148,4 @@ jobs:
 
           git commit -m "cleanup: remove inactive files/folders"
           git push
+```
