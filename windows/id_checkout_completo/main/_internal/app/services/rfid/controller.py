@@ -424,6 +424,7 @@ class Controller:
 			"""
 
 		with self.as_400.get_session() as session:
+			params_list = []
 			for item in comparison:
 				support = item.get('suporte') or self.support_data.support
 				try:
@@ -452,8 +453,10 @@ class Controller:
 				}
 				if not successful:
 					params['qtesperada'] = item.get('esperado', 0)
+				params_list.append(params)
 
-				self.as_400.execute_query(query, params, session=session)
+			if params_list:
+				self.as_400.execute_query(query, params_list, session=session)
 
 	# Support management
 	def set_support(self, support: str):
