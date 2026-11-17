@@ -1,0 +1,87 @@
+{% extends "base.html" %} {% block content %}
+<!-- Main Layout Container -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-5 pb-5 px-4">
+  <div class="lg:col-span-3 space-y-4">
+    <section id="operationPanel" data-get-url="{{ url_for('get_operation') }}"
+      data-cancel-url="{{ url_for('cancel_operation') }}" data-select-url="{{ url_for('select_operation') }}">
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-white p-4 shadow-sm">
+        <p class="text-sm text-gray-700" id="operationStatus" aria-live="polite">Carregando operação...</p>
+        <div class="flex gap-2">
+          <a id="selectOperationLink" href="{{ url_for('select_operation') }}"
+            class="hidden rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Selecionar
+            operação</a>
+          <button id="cancelOperationBtn" type="button"
+            class="hidden rounded bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700">Cancelar
+            operação</button>
+        </div>
+      </div>
+    </section>
+    {% include 'includes/_events.html' %} {% include 'includes/_devices.html' %}
+
+  </div>
+  <div class="lg:col-span-9">
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-6 xl:items-start">
+      <div class="xl:col-span-3">
+        {% include 'includes/_placeholder.html' %}
+      </div>
+      <div class="xl:col-span-2">
+        {% include 'includes/_finish.html' %}
+      </div>
+      <div class="xl:col-span-1">
+        {% include 'includes/_today_count.html' %}
+      </div>
+    </div>{# {% include 'includes/_file_uploader.html' %} #}
+    {% if table == "complete" or only_complete_table %}
+    {% include 'includes/_tags_all.html' %}
+    {% elif table == "gtin" %}
+    {% include 'includes/_tags_gtin.html' %}
+    {% elif table == "by_ant" %}
+    {% include 'includes/_tags_by_ant.html' %}
+    {% else %}
+    {% include 'includes/_tags.html' %}
+    {% endif %}
+  </div>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', async function () {
+    const panel = document.getElementById('operationPanel');
+    const status = document.getElementById('operationStatus');
+    const cancelButton = document.getElementById('cancelOperationBtn');
+    const selectLink = document.getElementById('selectOperationLink');
+
+    async function loadOperation() {
+      try {
+        const response = await fetch(panel.dataset.getUrl, { headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error('Não foi possível consultar a operação.');
+        const data = await response.json();
+        if (data.operation) {
+          status.textContent = `Operação atual: ${data.operation.toUpperCase()}`;
+          cancelButton.classList.remove('hidden');
+          selectLink.classList.add('hidden');
+        } else {
+          status.textContent = 'Nenhuma operação selecionada.';
+          cancelButton.classList.add('hidden');
+          selectLink.classList.remove('hidden');
+        }
+      } catch (error) {
+        status.textContent = error.message || 'Erro ao consultar a operação.';
+      }
+    }
+
+    cancelButton.addEventListener('click', async function () {
+      cancelButton.disabled = true;
+      try {
+        const response = await fetch(panel.dataset.cancelUrl, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Não foi possível cancelar a operação.');
+        window.location.href = panel.dataset.selectUrl;
+      } catch (error) {
+        status.textContent = error.message || 'Erro ao cancelar a operação.';
+      } finally {
+        cancelButton.disabled = false;
+      }
+    });
+
+    await loadOperation();
+  });
+</script>
+{% endblock %}

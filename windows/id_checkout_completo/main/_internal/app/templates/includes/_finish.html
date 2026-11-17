@@ -1,0 +1,154 @@
+<section id="finishPanel" class="mb-4 rounded-lg border bg-white p-4 shadow-sm"
+    data-can-finish-url="{{ url_for('can_finish') }}" data-compare-url="{{ url_for('compare_tags') }}"
+    data-finish-url="{{ url_for('finish') }}">
+    <h2 class="mb-3 text-sm font-semibold text-slate-700">Finalização</h2>
+    <button id="finishButton" type="button" disabled
+        class="w-full rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed">
+        Verificando...
+    </button>
+</section>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const panel = document.getElementById('finishPanel');
+        const button = document.getElementById('finishButton');
+        let canFinish = false;
+        let isFinishing = false;
+        let isChecking = false;
+        let autoFinishTimer = null;
+
+        function clearAutoFinishTimer() {
+            if (autoFinishTimer !== null) {
+                window.clearTimeout(autoFinishTimer);
+                autoFinishTimer = null;
+            }
+        }
+
+        function setButtonColor(color) {
+            const colorClasses = {
+                green: ['bg-green-600', 'hover:bg-green-700'],
+                yellow: ['bg-yellow-500', 'hover:bg-yellow-600'],
+                red: ['bg-red-600', 'hover:bg-red-700'],
+            };
+            button.classList.remove(
+                'bg-green-600', 'hover:bg-green-700',
+                'bg-yellow-500', 'hover:bg-yellow-600',
+                'bg-red-600', 'hover:bg-red-700',
+            );
+            button.classList.add(...colorClasses[color]);
+        }
+
+        function summarizeMismatches(tags) {
+            const counts = tags.reduce((result, tag) => {
+                if (tag.status === '>') result.surplus += 1;
+                else if (tag.status === '<') result.missing += 1;
+                else result.divergences += 1;
+                return result;
+            }, { divergences: 0, surplus: 0, missing: 0 });
+
+            return [
+                counts.divergences && `Itens com divergência: ${counts.divergences}`,
+                counts.surplus && `Itens com sobra: ${counts.surplus}`,
+                counts.missing && `Itens com falta: ${counts.missing}`,
+            ].filter(Boolean).join(' · ');
+        }
+
+        async function checkCanFinish(finishWhenReady = false) {
+            if (isFinishing || isChecking) return;
+            isChecking = true;
+            canFinish = false;
+            try {
+                const response = await fetch(panel.dataset.canFinishUrl, {
+                    headers: { Accept: 'application/json' },
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || data.message || 'Falha ao verificar finalização.');
+
+                if (!data.can_finish) {
+                    canFinish = false;
+                    clearAutoFinishTimer();
+                    button.disabled = true;
+                    setButtonColor('red');
+                    button.textContent = data.reason || 'Não pode finalizar';
+                    return;
+                }
+
+                canFinish = true;
+                button.disabled = false;
+                const compareResponse = await fetch(panel.dataset.compareUrl, {
+                    headers: { Accept: 'application/json' },
+                });
+                const compareData = await compareResponse.json();
+                if (!compareResponse.ok) {
+                    throw new Error(compareData.error || compareData.message || 'Falha ao comparar os dados.');
+                }
+
+                const tags = Array.isArray(compareData) ? compareData : compareData.tags || [];
+                const mismatches = tags.filter((tag) => tag.status !== '=');
+
+                if (mismatches.length === 0) {
+                    setButtonColor('green');
+                    if (finishWhenReady) {
+                        await finishOperation();
+                    } else {
+                        button.textContent = 'Finalizando operação...';
+                        if (autoFinishTimer === null) {
+                            autoFinishTimer = window.setTimeout(() => {
+                                autoFinishTimer = null;
+                                checkCanFinish(true);
+                            }, 2000);
+                        }
+                    }
+                } else {
+                    clearAutoFinishTimer();
+                    setButtonColor('yellow');
+                    button.textContent = `${summarizeMismatches(mismatches)}`;
+                }
+            } catch (error) {
+                clearAutoFinishTimer();
+                if (canFinish) {
+                    button.disabled = false;
+                    setButtonColor('yellow');
+                    button.textContent = `Finalizar operação · Não foi possível consultar as divergências`;
+                } else {
+                    button.disabled = true;
+                    setButtonColor('red');
+                    button.textContent = `Não pode finalizar: ${error.message || 'erro ao verificar'}`;
+                }
+            } finally {
+                isChecking = false;
+            }
+        }
+
+        async function finishOperation() {
+            if (!canFinish || isFinishing) return;
+            clearAutoFinishTimer();
+            isFinishing = true;
+            button.disabled = true;
+            button.textContent = 'Finalizando...';
+
+            try {
+                const response = await fetch(panel.dataset.finishUrl, { method: 'POST' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || data.message || 'Falha ao finalizar operação.');
+                window.dispatchEvent(new Event('single-operation-finished'));
+                isFinishing = false;
+                canFinish = false;
+                button.disabled = true;
+                button.textContent = 'Verificando...';
+                setButtonColor('red');
+                window.setTimeout(() => checkCanFinish(), 0);
+            } catch (error) {
+                button.textContent = error.message || 'Erro ao finalizar operação.';
+                setButtonColor('red');
+                isFinishing = false;
+                button.disabled = !canFinish;
+            }
+        }
+
+        button.addEventListener('click', finishOperation);
+
+        checkCanFinish();
+        window.setInterval(checkCanFinish, 1000);
+    });
+</script>

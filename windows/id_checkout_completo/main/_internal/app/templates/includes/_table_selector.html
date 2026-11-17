@@ -1,0 +1,38 @@
+<div class="flex items-center gap-2">
+    {% if selected_table == 'epcs' %}
+    <span class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium">EPCs</span>
+    {% else %}
+    <a href="{{ url_for('index') }}"
+        class="bg-white border border-blue-300 hover:bg-blue-50 text-blue-700 px-4 py-2 rounded text-sm font-medium">
+        EPCs
+    </a>
+    {% endif %}
+
+    {% if selected_table == 'gtin' %}
+    <span class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium">GTIN</span>
+    {% else %}
+    <a href="{{ url_for('gtin') }}"
+        class="bg-white border border-blue-300 hover:bg-blue-50 text-blue-700 px-4 py-2 rounded text-sm font-medium">
+        GTIN
+    </a>
+    {% endif %}
+
+
+    {% if selected_table == 'by_ant' %}
+    <span class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium">By Ant</span>
+    {% else %}
+    <a href="{{ url_for('by_ant') }}"
+        class="bg-white border border-blue-300 hover:bg-blue-50 text-blue-700 px-4 py-2 rounded text-sm font-medium">
+        By Ant
+    </a>
+    {% endif %}
+
+    {% if selected_table == 'all' %}
+    <span class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium">All</span>
+    {% else %}
+    <a href="{{ url_for('tag_details') }}"
+        class="bg-white border border-blue-300 hover:bg-blue-50 text-blue-700 px-4 py-2 rounded text-sm font-medium">
+        All
+    </a>
+    {% endif %}
+</div>

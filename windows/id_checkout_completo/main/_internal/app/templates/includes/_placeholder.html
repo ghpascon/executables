@@ -1,0 +1,483 @@
+<!-- Placeholder Control Widget -->
+<div class="mb-4 rounded-lg border bg-white p-3 shadow" x-data="placeholderControl()">
+    <form x-show="operation !== 'single'" class="mb-3 flex flex-wrap items-end gap-2" @submit.prevent="sendValue()">
+        <label class="min-w-[220px] flex-1">
+            <span class="mb-1 block text-sm font-semibold text-slate-700">Definir suporte</span>
+            <input x-model="draftValue" type="text" autofocus placeholder="Digite o suporte"
+                class="block w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </label>
+        <button type="submit" :disabled="loading || !draftValue.trim()" :class="{
+						'bg-blue-600 hover:bg-blue-700': !loading && draftValue.trim(),
+						'bg-slate-300 cursor-not-allowed': loading || !draftValue.trim(),
+					}" class="rounded px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors">
+            <span x-text="loading ? 'Enviando...' : 'Definir'"></span>
+        </button>
+        <button type="button" @click="clearValue()" :disabled="loading" :class="{
+						'bg-red-500 hover:bg-red-600': !loading,
+						'bg-slate-300 cursor-not-allowed': loading,
+					}" class="rounded px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors">
+            Limpar
+        </button>
+    </form>
+
+    <form x-show="operation === 'single'" class="mb-3 flex flex-wrap items-end gap-2"
+        @submit.prevent="sendSingleValue()">
+        <label class="min-w-[160px] flex-1">
+            <span class="mb-1 block text-sm font-semibold text-slate-700">Definir o suporte</span>
+            <input x-model="singleSupport" x-ref="singleSupportInput" type="text" autofocus
+                @keydown.enter.prevent="$refs.singleEanInput.focus()" placeholder="Suporte"
+                class="block w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </label>
+        <label class="min-w-[160px] flex-1">
+            <span class="mb-1 block text-sm font-semibold text-slate-700">Definir o EAN</span>
+            <input x-model="singleEan" x-ref="singleEanInput" type="text" placeholder="EAN"
+                class="block w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </label>
+        <button type="submit" :disabled="loading || !singleSupport.trim() || !singleEan.trim()"
+            class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:bg-slate-300">
+            <span x-text="loading ? 'Consultando...' : 'Consultar'"></span>
+        </button>
+        <button type="button" @click="clearValue()" :disabled="loading"
+            class="rounded bg-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:bg-slate-300">
+            Limpar
+        </button>
+    </form>
+
+    <div class="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
+        <div class="max-h-96 min-w-0 flex-1 overflow-auto border-t border-slate-100 pt-3 pr-1">
+            <template x-if="Object.keys(currentData).length === 0">
+                <div class="text-sm font-medium text-slate-600">Sem suporte definido</div>
+            </template>
+
+            <template x-if="Object.keys(currentData).length > 0">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <template x-for="(itemValue, itemKey) in currentData" :key="itemKey">
+                        <div :class="{'md:col-span-2': Array.isArray(itemValue) && itemValue.length > 0 && typeof itemValue[0] === 'object'}"
+                            class="rounded-lg border border-blue-200 bg-blue-50 p-3">
+
+                            <!-- Título do card (escondido para valores primitivos) -->
+                            <div x-show="!isPrimitive(itemValue)"
+                                class="text-xs font-bold uppercase tracking-wide text-blue-800 mb-2" x-text="itemKey">
+                            </div>
+
+                            <!-- Array of objects (table format) -->
+                            <template
+                                x-if="Array.isArray(itemValue) && itemValue.length > 0 && typeof itemValue[0] === 'object'">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs border-collapse">
+                                        <thead>
+                                            <tr class="bg-blue-100 border-b border-blue-200">
+                                                <template x-for="key in getObjectKeys(itemValue[0])" :key="key">
+                                                    <th class="px-2 py-1 text-left font-semibold text-blue-900"
+                                                        x-text="key"></th>
+                                                </template>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template x-for="(row, idx) in itemValue" :key="idx">
+                                                <tr class="border-b border-blue-100 hover:bg-blue-100"
+                                                    :class="{'bg-white': idx % 2 === 0, 'bg-blue-50': idx % 2 === 1}">
+                                                    <template x-for="key in getObjectKeys(itemValue[0])" :key="key">
+                                                        <td class="px-2 py-1 text-slate-700 break-words"
+                                                            x-text="formatSimpleValue(row[key])"></td>
+                                                    </template>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
+
+                            <!-- Simple object (key left, value right) -->
+                            <template
+                                x-if="typeof itemValue === 'object' && !Array.isArray(itemValue) && itemValue !== null">
+                                <template x-for="(entry, idx) in dictToArray(itemValue)" :key="idx">
+                                    <div class="flex justify-between items-start gap-3 py-1">
+                                        <span class="font-semibold text-blue-700" x-text="entry.key"></span>
+                                        <span class="text-slate-700 break-words text-right"
+                                            x-text="formatSimpleValue(entry.value)"></span>
+                                    </div>
+                                </template>
+                            </template>
+
+                            <!-- Simple array (table without header) -->
+                            <template
+                                x-if="Array.isArray(itemValue) && itemValue.length > 0 && typeof itemValue[0] !== 'object'">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs border-collapse">
+                                        <tbody>
+                                            <template x-for="(item, idx) in itemValue" :key="idx">
+                                                <tr class="border-b border-blue-100 hover:bg-blue-100"
+                                                    :class="{'bg-white': idx % 2 === 0, 'bg-blue-50': idx % 2 === 1}">
+                                                    <td class="px-2 py-1 text-slate-700 break-words"
+                                                        x-text="formatSimpleValue(item)"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
+
+                            <!-- Primitive value (key left, value right, no white box) -->
+                            <template x-if="isPrimitive(itemValue)">
+                                <div class="flex justify-between items-start gap-3">
+                                    <span class="text-xs font-bold uppercase tracking-wide text-blue-800"
+                                        x-text="itemKey"></span>
+                                    <span
+                                        class="text-sm font-semibold text-slate-700 whitespace-pre-wrap break-words text-right"
+                                        x-text="serializeValue(itemValue)"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+
+        </div>
+        <button type="button" @click="openAddBySkuModal()"
+            class="shrink-0 self-end rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700">
+            Adicionar por SKU
+        </button>
+    </div>
+
+    <div x-show="showAddBySkuModal" x-transition.opacity @keydown.escape.window="closeAddBySkuModal()"
+        @click.self="closeAddBySkuModal()"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6" role="dialog"
+        aria-modal="true" aria-labelledby="addBySkuTitle">
+        <form @submit.prevent="addBySku()" class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+            <div class="mb-4 flex items-start justify-between gap-4">
+                <div>
+                    <h2 id="addBySkuTitle" class="text-lg font-bold text-slate-900">Adicionar por SKU</h2>
+                    <p class="mt-1 text-sm text-slate-600">Informe o GTIN para adicionar a etiqueta.</p>
+                </div>
+                <button type="button" @click="closeAddBySkuModal()" :disabled="addBySkuLoading"
+                    class="rounded p-1 text-xl leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
+                    aria-label="Fechar modal">&times;</button>
+            </div>
+
+            <label for="addBySkuGtin" class="mb-1 block text-sm font-semibold text-slate-700">GTIN</label>
+            <input id="addBySkuGtin" x-ref="addBySkuGtinInput" x-model="addBySkuGtin" type="text" inputmode="numeric"
+                autocomplete="off" placeholder="Digite o GTIN" :disabled="addBySkuLoading" required
+                class="block w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-slate-100" />
+            <p x-show="addBySkuError" x-text="addBySkuError" class="mt-2 text-sm text-red-600" role="alert"></p>
+
+            <div class="mt-5 flex justify-end gap-2">
+                <button type="button" @click="closeAddBySkuModal()" :disabled="addBySkuLoading"
+                    class="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                    Cancelar
+                </button>
+                <button type="submit" :disabled="addBySkuLoading || !addBySkuGtin.trim()"
+                    class="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+                    <span x-text="addBySkuLoading ? 'Adicionando...' : 'Adicionar'">Adicionar</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function placeholderControl() {
+        return {
+            draftValue: "",
+            singleSupport: "",
+            singleEan: "",
+            currentData: {},
+            loading: false,
+            showAddBySkuModal: false,
+            addBySkuGtin: "",
+            addBySkuLoading: false,
+            addBySkuError: "",
+            operation: "",
+            finishEventHandler: null,
+
+            openAddBySkuModal() {
+                this.addBySkuGtin = "";
+                this.addBySkuError = "";
+                this.showAddBySkuModal = true;
+                this.$nextTick(() => {
+                    this.$refs.addBySkuGtinInput?.focus();
+                    this.$refs.addBySkuGtinInput?.select();
+                });
+            },
+
+            closeAddBySkuModal() {
+                if (this.addBySkuLoading) return;
+                this.showAddBySkuModal = false;
+                this.addBySkuError = "";
+            },
+
+            async addBySku() {
+                const gtin = this.addBySkuGtin.trim();
+                if (!gtin || this.addBySkuLoading) return;
+
+                this.addBySkuLoading = true;
+                this.addBySkuError = "";
+                try {
+                    const endpoint = "{{ url_for('add_by_gtin', gtin='__GTIN__') }}".replace(
+                        "__GTIN__",
+                        encodeURIComponent(gtin),
+                    );
+                    const response = await fetch(endpoint, { method: "POST", headers: { Accept: "application/json" } });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || data.message || `HTTP ${response.status}`);
+
+                    this.showAddBySkuModal = false;
+                    this.addBySkuGtin = "";
+                    if (typeof window.showAlert === "function") {
+                        window.showAlert(data.message || "Tag adicionada com sucesso", "success", 5000, "toast");
+                    }
+                } catch (error) {
+                    this.addBySkuError = this.extractErrorMessage(error);
+                } finally {
+                    this.addBySkuLoading = false;
+                }
+            },
+
+            focusSingleSupport() {
+                if (this.operation !== "single") return;
+                this.$nextTick(() => {
+                    const input = this.$refs.singleSupportInput;
+                    if (!input) return;
+
+                    input.focus({ preventScroll: true });
+                    window.setTimeout(() => {
+                        if (document.activeElement !== input) {
+                            input.focus({ preventScroll: true });
+                        }
+                    }, 100);
+                });
+            },
+
+            isPrimitive(value) {
+                return value === null
+                    || (typeof value !== "object")
+                    || (Array.isArray(value) && value.length === 0);
+            },
+
+            serializeValue(value) {
+                if (value === null) {
+                    return "null";
+                }
+
+                if (typeof value === "object") {
+                    try {
+                        return JSON.stringify(value, null, 2);
+                    } catch (error) {
+                        return String(value);
+                    }
+                }
+
+                return String(value);
+            },
+
+            formatSimpleValue(value) {
+                if (value === null || value === undefined) {
+                    return "—";
+                }
+
+                if (typeof value === "object") {
+                    try {
+                        return JSON.stringify(value);
+                    } catch {
+                        return String(value);
+                    }
+                }
+
+                if (typeof value === "boolean") {
+                    return value ? "Yes" : "No";
+                }
+
+                return String(value);
+            },
+
+            getObjectKeys(obj) {
+                if (typeof obj !== "object" || obj === null) {
+                    return [];
+                }
+                return Object.keys(obj);
+            },
+
+            dictToArray(obj) {
+                if (typeof obj !== "object" || obj === null) {
+                    return [];
+                }
+                return Object.entries(obj).map(([key, value]) => ({ key, value }));
+            },
+
+            extractErrorMessage(error) {
+                if (typeof error === "string") {
+                    return error;
+                }
+
+                if (error && typeof error === "object") {
+                    return error.message || error.msg || error.menssagem || error.detail || JSON.stringify(error);
+                }
+
+                return "An error occurred. Please try again.";
+            },
+
+            async init() {
+                this.finishEventHandler = () => {
+                    this.singleSupport = "";
+                    this.singleEan = "";
+                    this.currentData = {};
+                    this.focusSingleSupport();
+                };
+                window.addEventListener("single-operation-finished", this.finishEventHandler);
+
+                try {
+                    const response = await fetch("{{ url_for('get_operation') }}");
+                    const data = await response.json();
+                    this.operation = data.operation || "";
+                    this.focusSingleSupport();
+                } catch (error) {
+                    console.error("Error loading current operation:", error);
+                }
+                await this.loadCurrentValue();
+                this.focusSingleSupport();
+            },
+
+            destroy() {
+                if (this.finishEventHandler) {
+                    window.removeEventListener("single-operation-finished", this.finishEventHandler);
+                }
+            },
+
+            async loadCurrentValue() {
+                try {
+                    const response = await fetch("{{ url_for('get_value_placeholder') }}");
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.message || `HTTP ${response.status}`);
+                    }
+
+                    if (data && typeof data === "object" && !Array.isArray(data)) {
+                        this.currentData = data;
+                    } else if (Array.isArray(data)) {
+                        this.currentData = { data };
+                    } else {
+                        this.currentData = { value: data };
+                    }
+                } catch (error) {
+                    this.currentData = {};
+                    const errorMessage = this.extractErrorMessage(error);
+                    console.error("Error loading placeholder value:", error);
+                    if (typeof window.showAlert === "function") {
+                        window.showAlert(errorMessage, "error", 5000, "toast");
+                    }
+                }
+            },
+
+            async sendValue() {
+                const value = this.draftValue.trim();
+                if (!value || this.loading) {
+                    return;
+                }
+
+                this.loading = true;
+
+                try {
+                    const endpoint = "{{ url_for('set_value_placeholder', value='PLACEHOLDER_VALUE') }}".replace(
+                        "PLACEHOLDER_VALUE",
+                        encodeURIComponent(value),
+                    );
+
+                    const response = await fetch(endpoint, { method: "POST" });
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.message || `HTTP ${response.status}`);
+                    }
+
+                    this.draftValue = "";
+                    await this.loadCurrentValue();
+
+                    const successMessage = data.message || `Value set successfully: ${value}`;
+                    if (typeof window.showAlert === "function") {
+                        window.showAlert(successMessage, "success", 5000, "toast");
+                    }
+                } catch (error) {
+                    this.draftValue = "";
+                    const errorMessage = this.extractErrorMessage(error);
+                    console.error("Error setting placeholder value:", error);
+                    if (typeof window.showAlert === "function") {
+                        window.showAlert(errorMessage, "error", 5000, "toast");
+                    }
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async sendSingleValue() {
+                const support = this.singleSupport.trim();
+                const ean = this.singleEan.trim();
+                if (!support || !ean || this.loading) return;
+
+                this.loading = true;
+                try {
+                    const response = await fetch("{{ url_for('set_single_support') }}", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Accept: "application/json" },
+                        body: JSON.stringify({ support, ean }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message || data.error || `HTTP ${response.status}`);
+
+                    this.singleSupport = "";
+                    this.singleEan = "";
+                    await this.loadCurrentValue();
+                    if (typeof window.showAlert === "function") {
+                        window.showAlert(data.message || "Suporte e EAN consultados.", "success", 5000, "toast");
+                    }
+                    this.focusSingleSupport();
+                } catch (error) {
+                    const errorMessage = this.extractErrorMessage(error);
+                    if (typeof window.showAlert === "function") {
+                        window.showAlert(errorMessage, "error", 5000, "toast");
+                    }
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async clearValue() {
+                if (this.loading) {
+                    return;
+                }
+
+                this.loading = true;
+
+                try {
+                    const response = await fetch("{{ url_for('delete_value_placeholder') }}", {
+                        method: "DELETE",
+                    });
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.message || `HTTP ${response.status}`);
+                    }
+
+                    this.draftValue = "";
+                    this.singleSupport = "";
+                    this.singleEan = "";
+                    await this.loadCurrentValue();
+                    this.focusSingleSupport();
+
+                    const successMessage = data.message || "Value cleared successfully.";
+                    if (typeof window.showAlert === "function") {
+                        window.showAlert(successMessage, "success", 5000, "toast");
+                    }
+                } catch (error) {
+                    const errorMessage = this.extractErrorMessage(error);
+                    console.error("Error clearing placeholder value:", error);
+                    if (typeof window.showAlert === "function") {
+                        window.showAlert(errorMessage, "error", 5000, "toast");
+                    }
+                } finally {
+                    this.loading = false;
+                }
+            },
+        };
+    }
+</script>

@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <div class="bg-white rounded-xl shadow p-6 border border-gray-100">
+        <h1 class="text-2xl font-semibold text-slate-800">ZPL CSV Helper</h1>
+        <p class="text-sm text-gray-600 mt-2">
+            Paste your ZPL with placeholders like <span class="font-mono">{serial}</span>, <span
+                class="font-mono">{epc}</span>, define start values and quantity, then generate a CSV with one ZPL per
+            line.
+        </p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <section class="lg:col-span-2 bg-white rounded-xl shadow p-6 border border-gray-100 space-y-4">
+            <div class="flex items-center justify-between gap-3">
+                <label for="zplTemplate" class="text-sm font-medium text-gray-700">Template ZPL</label>
+                <button id="detectFieldsBtn" type="button"
+                    class="px-3 py-2 text-sm bg-slate-800 text-white rounded-md hover:bg-slate-900 transition-colors">
+                    Detect placeholders
+                </button>
+            </div>
+
+            <textarea id="zplTemplate" rows="12" placeholder="Exemplo: ^XA^FO50,50^FD{serial}^FS^FO50,100^FD{epc}^FS^XZ"
+                class="w-full border border-gray-300 rounded-lg p-3 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+
+            <div id="placeholderSummary" class="text-sm text-gray-600"></div>
+        </section>
+
+        <section class="bg-white rounded-xl shadow p-6 border border-gray-100 space-y-4">
+            <div>
+                <label for="quantityInput" class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                <input id="quantityInput" type="number" min="1" value="10"
+                    class="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+
+            <div>
+                <label for="fileNameInput" class="block text-sm font-medium text-gray-700 mb-1">File name</label>
+                <input id="fileNameInput" type="text" value="zpl_labels"
+                    class="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+
+            <label class="flex items-start gap-2 text-sm text-gray-700">
+                <input id="singleLineCheck" type="checkbox" checked class="mt-1" />
+                <span>Force single-line ZPL (removes line breaks and keeps exactly one record per CSV line)</span>
+            </label>
+
+            <div class="grid grid-cols-2 gap-2 pt-2">
+                <button id="generateBtn" type="button"
+                    class="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">Generate</button>
+                <button id="downloadBtn" type="button"
+                    class="px-3 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors">Download
+                    CSV</button>
+            </div>
+
+            <button id="copyBtn" type="button"
+                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">Copy
+                CSV</button>
+        </section>
+    </div>
+
+    <section class="bg-white rounded-xl shadow p-6 border border-gray-100 space-y-4">
+        <h2 class="text-lg font-semibold text-slate-800">Placeholder setup</h2>
+        <div class="overflow-auto">
+            <table class="min-w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <thead class="bg-gray-50 text-gray-700">
+                    <tr>
+                        <th class="px-3 py-2 text-left">Placeholder</th>
+                        <th class="px-3 py-2 text-left">Start value</th>
+                        <th class="px-3 py-2 text-left">Step</th>
+                        <th class="px-3 py-2 text-left">Mode</th>
+                        <th class="px-3 py-2 text-left">Increment</th>
+                    </tr>
+                </thead>
+                <tbody id="fieldsBody"></tbody>
+            </table>
+        </div>
+        <p id="fieldsHelp" class="text-xs text-gray-500">Click "Detect placeholders" to build the fields automatically.
+        </p>
+    </section>
+
+    <section class="bg-white rounded-xl shadow p-6 border border-gray-100 space-y-3">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold text-slate-800">Preview</h2>
+            <span id="previewCount" class="text-xs text-gray-500"></span>
+        </div>
+        <div id="previewTable" class="overflow-auto"></div>
+    </section>
+
+    <div id="messages"></div>
+</div>
+
+<script>
+    const zplTemplate = document.getElementById('zplTemplate');
+    const detectFieldsBtn = document.getElementById('detectFieldsBtn');
+    const placeholderSummary = document.getElementById('placeholderSummary');
+    const fieldsBody = document.getElementById('fieldsBody');
+    const fieldsHelp = document.getElementById('fieldsHelp');
+    const quantityInput = document.getElementById('quantityInput');
+    const fileNameInput = document.getElementById('fileNameInput');
+    const singleLineCheck = document.getElementById('singleLineCheck');
+    const generateBtn = document.getElementById('generateBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const previewTable = document.getElementById('previewTable');
+    const previewCount = document.getElementById('previewCount');
+    const messages = document.getElementById('messages');
+
+    let detectedKeys = [];
+    let generatedCsv = '';
+
+    function showMessage(text, type = 'info') {
+        if (window.showAlert) {
+            window.showAlert(text, type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info'));
+            return;
+        }
+        const color = type === 'error' ? 'red' : (type === 'success' ? 'green' : 'blue');
+        messages.innerHTML = `<div class="p-2 rounded text-sm bg-${color}-100 text-${color}-800">${text}</div>`;
+        setTimeout(() => {
+            messages.innerHTML = '';
+        }, 4000);
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function extractPlaceholders(template) {
+        const regex = /{([a-zA-Z0-9_]+)}/g;
+        const found = [];
+        const used = new Set();
+        let match;
+        while ((match = regex.exec(template)) !== null) {
+            const key = match[1];
+            if (!used.has(key)) {
+                used.add(key);
+                found.push(key);
+            }
+        }
+        return found;
+    }
+
+    function defaultStartForKey(key) {
+        const k = key.toLowerCase();
+        if (k.includes('epc')) return '300833B2DDD9014000000001';
+        if (k.includes('serial') || k.includes('serie')) return '0001';
+        return '1';
+    }
+
+    function renderFields(keys) {
+        fieldsBody.innerHTML = '';
+
+        if (!keys.length) {
+            fieldsHelp.textContent = 'No placeholders found. Use the format {placeholder_name} in your ZPL.';
+            placeholderSummary.textContent = 'Placeholders detected: 0';
+            return;
+        }
+
+        fieldsHelp.textContent = 'Set start values. The generator increments automatically according to quantity.';
+        placeholderSummary.textContent = `Placeholders detected: ${keys.map(k => `{${k}}`).join(', ')}`;
+
+        for (const key of keys) {
+            const tr = document.createElement('tr');
+            tr.className = 'border-t';
+            tr.innerHTML = `
+				<td class="px-3 py-2 font-mono text-xs text-slate-700">{${escapeHtml(key)}}</td>
+				<td class="px-3 py-2">
+					<input data-role="start" data-key="${escapeHtml(key)}" type="text" value="${escapeHtml(defaultStartForKey(key))}"
+						class="w-full border border-gray-300 rounded p-2 font-mono text-xs" />
+				</td>
+				<td class="px-3 py-2">
+					<input data-role="step" data-key="${escapeHtml(key)}" type="number" value="1"
+						class="w-full border border-gray-300 rounded p-2 text-xs" />
+				</td>
+				<td class="px-3 py-2">
+					<select data-role="mode" data-key="${escapeHtml(key)}" class="w-full border border-gray-300 rounded p-2 text-xs">
+						<option value="auto">Auto</option>
+						<option value="number">Number</option>
+						<option value="hex">Hex</option>
+						<option value="text">Text</option>
+					</select>
+				</td>
+				<td class="px-3 py-2">
+					<input data-role="inc" data-key="${escapeHtml(key)}" type="checkbox" checked />
+				</td>
+			`;
+            fieldsBody.appendChild(tr);
+        }
+    }
+
+    function normalizeOneLine(text) {
+        return String(text || '')
+            .replace(/\r\n?/g, '\n')
+            .split('\n')
+            .map(part => part.trim())
+            .join('')
+            .trim();
+    }
+
+    function csvEscape(value) {
+        const out = String(value ?? '').replace(/"/g, '""');
+        return `"${out}"`;
+    }
+
+    function readFieldConfigs() {
+        const rows = Array.from(fieldsBody.querySelectorAll('tr'));
+        const configs = {};
+
+        for (const row of rows) {
+            const startInput = row.querySelector('[data-role="start"]');
+            const stepInput = row.querySelector('[data-role="step"]');
+            const modeSelect = row.querySelector('[data-role="mode"]');
+            const incInput = row.querySelector('[data-role="inc"]');
+
+            const key = startInput?.dataset?.key;
+            if (!key) continue;
+
+            const stepRaw = Number(stepInput?.value ?? 1);
+            const safeStep = Number.isFinite(stepRaw) ? Math.trunc(stepRaw) : 1;
+
+            configs[key] = {
+                start: String(startInput.value ?? ''),
+                step: safeStep,
+                mode: modeSelect?.value || 'auto',
+                increment: !!incInput?.checked
+            };
+        }
+
+        return configs;
+    }
+
+    function detectMode(start, mode, key) {
+        if (mode && mode !== 'auto') return mode;
+
+        if (/^0x[0-9a-fA-F]+$/.test(start)) return 'hex';
+        if (/^[+-]?\d+$/.test(start)) return 'number';
+        if (/^[0-9a-fA-F]+$/.test(start) && (/[a-fA-F]/.test(start) || key.toLowerCase().includes('epc'))) return 'hex';
+
+        return 'text';
+    }
+
+    function incrementDecimalString(start, step, index) {
+        if (!/^[+-]?\d+$/.test(start)) return `${start}`;
+
+        const negative = start.startsWith('-');
+        const digits = negative ? start.slice(1) : start;
+        const width = digits.length;
+
+        const base = BigInt(start);
+        const value = base + (BigInt(step) * BigInt(index));
+        const asString = value.toString();
+
+        if (asString.startsWith('-')) return asString;
+        return asString.padStart(width, '0');
+    }
+
+    function incrementHexString(start, step, index) {
+        const prefixed = /^0x/i.test(start);
+        const raw = prefixed ? start.slice(2) : start;
+
+        if (!/^[0-9a-fA-F]+$/.test(raw)) return `${start}`;
+
+        const width = raw.length;
+        const base = BigInt(`0x${raw}`);
+        const value = base + (BigInt(step) * BigInt(index));
+        const asHex = value.toString(16).toUpperCase().padStart(width, '0');
+
+        return prefixed ? `0x${asHex}` : asHex;
+    }
+
+    function incrementTextString(start, step, index) {
+        if (index === 0) return start;
+
+        const match = start.match(/^(.*?)(\d+)$/);
+        if (match) {
+            const prefix = match[1];
+            const numberPart = match[2];
+            const width = numberPart.length;
+            const base = BigInt(numberPart);
+            const value = base + (BigInt(step) * BigInt(index));
+            return `${prefix}${value.toString().padStart(width, '0')}`;
+        }
+
+        return `${start}${BigInt(step) * BigInt(index)}`;
+    }
+
+    function resolveValue(key, config, rowIndex) {
+        const start = String(config.start ?? '');
+        const step = Number.isFinite(config.step) ? config.step : 1;
+
+        if (!config.increment) return start;
+
+        const mode = detectMode(start, config.mode, key);
+
+        if (mode === 'number') return incrementDecimalString(start, step, rowIndex);
+        if (mode === 'hex') return incrementHexString(start, step, rowIndex);
+        return incrementTextString(start, step, rowIndex);
+    }
+
+    function buildZplRow(template, configs, rowIndex) {
+        let output = template;
+        for (const key of Object.keys(configs)) {
+            const token = `{${key}}`;
+            const value = resolveValue(key, configs[key], rowIndex);
+            output = output.split(token).join(value);
+        }
+        return singleLineCheck.checked ? normalizeOneLine(output) : output;
+    }
+
+    function renderPreview(lines) {
+        if (!lines.length) {
+            previewTable.innerHTML = '<div class="text-sm text-gray-500">No data generated yet.</div>';
+            previewCount.textContent = '';
+            return;
+        }
+
+        const max = Math.min(lines.length, 8);
+        let html = '<table class="min-w-full text-xs border border-gray-200 rounded-lg overflow-hidden">';
+        html += '<thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left">#</th><th class="px-3 py-2 text-left">ZPL</th></tr></thead><tbody>';
+        for (let i = 0; i < max; i++) {
+            html += `<tr class="border-t"><td class="px-3 py-2">${i + 1}</td><td class="px-3 py-2 font-mono">${escapeHtml(lines[i])}</td></tr>`;
+        }
+        html += '</tbody></table>';
+
+        previewTable.innerHTML = html;
+        previewCount.textContent = `Showing ${max} of ${lines.length}`;
+    }
+
+    function sameKeySet(a, b) {
+        if (!Array.isArray(a) || !Array.isArray(b)) return false;
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
+    }
+
+    function generateData() {
+        const template = zplTemplate.value || '';
+        if (!template.trim()) {
+            showMessage('Paste a ZPL template before generating.', 'error');
+            return null;
+        }
+
+        const currentKeys = extractPlaceholders(template);
+        const mustRerender = !sameKeySet(currentKeys, detectedKeys) || fieldsBody.children.length === 0;
+        if (mustRerender) {
+            detectedKeys = currentKeys;
+            renderFields(detectedKeys);
+        }
+
+        const quantity = Math.max(1, parseInt(quantityInput.value || '1', 10));
+        quantityInput.value = quantity;
+
+        const configs = readFieldConfigs();
+        const lines = [];
+
+        for (let i = 0; i < quantity; i++) {
+            lines.push(buildZplRow(template, configs, i));
+        }
+
+        generatedCsv = lines.map(csvEscape).join('\n');
+        renderPreview(lines);
+        showMessage(`Generated successfully: ${lines.length} line(s).`, 'success');
+        return generatedCsv;
+    }
+
+    function sanitizeFilename(name) {
+        const base = String(name || 'zpl_labels').trim();
+        const safe = base.replace(/[^a-zA-Z0-9._-]/g, '_');
+        return safe || 'zpl_labels';
+    }
+
+    function detectAndRender(silent = false) {
+        const template = zplTemplate.value || '';
+        detectedKeys = extractPlaceholders(template);
+        renderFields(detectedKeys);
+        if (silent) return;
+
+        if (!detectedKeys.length) {
+            showMessage('No placeholders detected. Use tokens like {serial} and {epc}.', 'info');
+        } else {
+            showMessage(`Detected ${detectedKeys.length} placeholder(s).`, 'success');
+        }
+    }
+
+    detectFieldsBtn.addEventListener('click', detectAndRender);
+
+    generateBtn.addEventListener('click', () => {
+        generateData();
+    });
+
+    downloadBtn.addEventListener('click', () => {
+        const csv = generatedCsv || generateData();
+        if (!csv) return;
+
+        const fileName = `${sanitizeFilename(fileNameInput.value)}.csv`;
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        URL.revokeObjectURL(url);
+        showMessage(`File ${fileName} downloaded.`, 'success');
+    });
+
+    copyBtn.addEventListener('click', async () => {
+        const csv = generatedCsv || generateData();
+        if (!csv) return;
+
+        try {
+            await navigator.clipboard.writeText(csv);
+            showMessage('CSV copied to clipboard.', 'success');
+        } catch (e) {
+            showMessage('Could not copy automatically.', 'error');
+        }
+    });
+
+    zplTemplate.addEventListener('blur', () => {
+        if (!zplTemplate.value.trim()) return;
+        detectAndRender();
+    });
+
+    detectAndRender(true);
+</script>
+
+{% endblock %}

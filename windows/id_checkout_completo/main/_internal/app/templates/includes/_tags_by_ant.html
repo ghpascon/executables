@@ -1,0 +1,153 @@
+<!-- EPCs grouped by antenna -->
+<div class="bg-white rounded-lg shadow border p-4 flex flex-col w-full" x-data="tagsByAntennaTable()">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4 flex-shrink-0">
+        {% with selected_table='by_ant' %}
+        {% include 'includes/_table_selector.html' %}
+        {% endwith %}
+
+        <h4 class="text-lg font-semibold">
+            EPCs por antena (<span x-text="tags.length"></span>)
+        </h4>
+
+        <label class="flex items-center gap-2 text-sm text-gray-600">
+            <span>Limit</span>
+            <select x-model="selectedLimit" @change="onLimitChange()"
+                class="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900">
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="all">All</option>
+            </select>
+        </label>
+    </div>
+
+    <div class="flex-1 min-h-0 overflow-y-auto">
+        <div x-show="antennaGroups.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <template x-for="(group, index) in antennaGroups" :key="`antenna-${group.key}`">
+                <section class="rounded-lg border-2 overflow-hidden bg-white"
+                    :style="`border-color: ${antennaColor(index)}`">
+                    <header class="px-3 py-2 border-b-2 flex items-center justify-between"
+                        :style="`background-color: ${antennaColor(index)}; border-color: ${antennaColor(index)}`">
+                        <h5 class="text-sm font-semibold text-white" x-text="antennaTitle(group.key)"></h5>
+                        <span class="text-xs font-medium text-white/90" x-text="`${group.tags.length} EPCs`"></span>
+                    </header>
+
+                    <ul class="divide-y divide-gray-100 max-h-40 overflow-y-auto">
+                        <template x-for="(tag, tagIndex) in group.tags" :key="`antenna-${group.key}-epc-${tagIndex}`">
+                            <li class="px-3 py-2 hover:bg-gray-50">
+                                <div class="font-mono text-sm text-gray-800 break-all"
+                                    x-text="tag.epc || tag.EPC || tag.epcHex || tag.epc_hex || '-' "></div>
+                            </li>
+                        </template>
+                        <li x-show="group.tags.length === 0" class="px-3 py-2 text-sm text-gray-400">
+                            No EPCs in this antenna
+                        </li>
+                    </ul>
+                </section>
+            </template>
+        </div>
+
+        <div x-show="antennaGroups.length === 0" class="p-8 text-center text-gray-400">
+            No EPCs found
+        </div>
+    </div>
+</div>
+
+<script>
+    // Map antenna identifiers to friendly names when desired, e.g. { 1: "Dock door" }.
+    const ant_name = {
+        '1': 'ANTENA 1',
+        '2': 'ANTENA 2',
+        '3': 'ANTENA 3',
+        '4': 'ANTENA 4'
+    };
+
+    function tagsByAntennaTable() {
+        return {
+            tags: [],
+            antennaGroups: [],
+            loadingTags: false,
+            lastTagsPayload: "",
+            selectedLimit: "all",
+            colors: ["#2563eb", "#059669", "#d97706", "#7c3aed", "#db2777", "#0891b2"],
+
+            groupTagsByAntenna() {
+                const grouped = new Map();
+
+                Object.keys(ant_name).forEach((key) => grouped.set(key, []));
+
+                this.tags.forEach((tag) => {
+                    const antenna = tag.ant ?? tag.antenna ?? tag.antennaPort ?? tag.antenna_port;
+                    const key = antenna === null || antenna === undefined || antenna === ""
+                        ? "unknown"
+                        : String(antenna);
+                    if (!grouped.has(key)) {
+                        grouped.set(key, []);
+                    }
+                    grouped.get(key).push(tag);
+                });
+
+                this.antennaGroups = Array.from(grouped, ([key, tags]) => ({ key, tags })).sort((left, right) => {
+                    if (left.key === "unknown") return 1;
+                    if (right.key === "unknown") return -1;
+                    const leftNumber = Number(left.key);
+                    const rightNumber = Number(right.key);
+                    return Number.isNaN(leftNumber) || Number.isNaN(rightNumber)
+                        ? left.key.localeCompare(right.key)
+                        : leftNumber - rightNumber;
+                });
+            },
+
+            async init() {
+                await this.loadTags();
+                TemplateUtils.bindVisibilityPolling(this, this.loadTags, 2000);
+            },
+
+            destroy() {
+                TemplateUtils.unbindVisibilityPolling(this);
+            },
+
+            getTagsUrl() {
+                if (this.selectedLimit === "all") {
+                    return "{{ url_for('get_tags') }}";
+                }
+                return "{{ url_for('get_n_tags', limit=999999) }}".replace("999999", this.selectedLimit);
+            },
+
+            async onLimitChange() {
+                this.lastTagsPayload = "";
+                await this.loadTags();
+            },
+
+            async loadTags() {
+                if (this.loadingTags) return;
+                this.loadingTags = true;
+                try {
+                    const result = await TemplateUtils.fetchJsonIfChanged(this.getTagsUrl(), this.lastTagsPayload);
+                    if (result.changed) {
+                        this.lastTagsPayload = result.payload;
+                        const data = result.data;
+                        this.tags = Array.isArray(data)
+                            ? data
+                            : Array.isArray(data?.tags)
+                                ? data.tags
+                                : [];
+                        this.groupTagsByAntenna();
+                    }
+                } catch (error) {
+                    console.error("Error loading antenna EPCs:", error);
+                } finally {
+                    this.loadingTags = false;
+                }
+            },
+
+            antennaTitle(key) {
+                return ant_name[key] || (key === "unknown" ? "Antenna unknown" : `${key}`);
+            },
+
+            antennaColor(index) {
+                return this.colors[index % this.colors.length];
+            },
+        };
+    }
+</script>

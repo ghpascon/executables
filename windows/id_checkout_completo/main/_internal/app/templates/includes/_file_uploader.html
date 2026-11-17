@@ -1,0 +1,574 @@
+<div x-data="fileUploaderModal()">
+    <button type="button" @click="openModal()"
+        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-semibold shadow-sm transition-colors">
+        File Uploader
+    </button>
+
+    <div x-show="isOpen" x-transition.opacity class="fixed inset-0 z-50 bg-slate-900/60 p-4 overflow-y-auto"
+        @keydown.escape.window="closeModal()" style="display: none">
+        <div class="max-w-5xl mx-auto mt-8 bg-white rounded-xl shadow-2xl border border-slate-200"
+            @click.outside="closeModal()">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900">File Uploader</h3>
+                    <p class="text-xs text-slate-600 mt-1">Importa CSV ou Excel, mapeia colunas e envia lista de dict.
+                    </p>
+                </div>
+                <button type="button" @click="closeModal()"
+                    class="text-slate-500 hover:text-slate-700 text-sm font-semibold">Close</button>
+            </div>
+
+            <div class="p-5 space-y-4">
+                <div class="rounded-lg border border-slate-200 p-4">
+                    <label class="block text-sm font-semibold text-slate-800 mb-2">Arquivo (.csv, .xls, .xlsx)</label>
+                    <input type="file" accept=".csv,.xls,.xlsx" @change="onFileChange($event)" x-ref="fileInput"
+                        class="block w-full text-sm text-slate-700 file:mr-4 file:py-2 file:px-3 file:rounded file:border-0 file:bg-slate-200 file:text-slate-900 hover:file:bg-slate-300" />
+                    <div class="mt-2 text-xs text-slate-600"
+                        x-text="fileName ? `Arquivo: ${fileName}` : 'Nenhum arquivo selecionado'"></div>
+                </div>
+
+                <div x-show="fileName" class="rounded-lg border border-cyan-200 bg-cyan-50 p-4" style="display: none">
+                    <label class="inline-flex items-center gap-2 text-sm font-semibold text-cyan-900 cursor-pointer">
+                        <input type="checkbox" x-model="firstRowIsHeader" @change="reparseCurrentFile()"
+                            class="h-4 w-4 rounded border-cyan-400 text-cyan-600 focus:ring-cyan-500" />
+                        <span>First row is header</span>
+                    </label>
+                </div>
+
+                <div x-show="isCsv" class="rounded-lg border border-amber-200 bg-amber-50 p-4" style="display: none">
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div>
+                            <label
+                                class="block text-xs font-semibold uppercase tracking-wide text-amber-900 mb-1">Separator</label>
+                            <select x-model="separator" @change="reparseCsv()"
+                                class="rounded border border-amber-300 bg-white px-2 py-1.5 text-sm text-slate-900">
+                                <option value=",">Comma (,)</option>
+                                <option value=";">Semicolon (;)</option>
+                                <option value="\t">Tab (\t)</option>
+                                <option value="|">Pipe (|)</option>
+                            </select>
+                        </div>
+                        <div class="text-xs text-amber-900 font-medium">
+                            Detectado automaticamente: <span class="font-bold"
+                                x-text="separatorLabel(detectedSeparator)"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="headers.length > 0" class="rounded-lg border border-slate-200 p-4" style="display: none">
+                    <div class="text-sm font-semibold text-slate-800 mb-3">Mapeamento de colunas</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <template x-for="field in fields" :key="field">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-700 mb-1"
+                                    x-text="field"></label>
+                                <select x-model="mapping[field]" @change="rebuildPreview()"
+                                    class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900">
+                                    <option value="">Select column</option>
+                                    <option value="__fixed__">Fixed value</option>
+                                    <template x-for="header in headers" :key="header">
+                                        <option :value="header" x-text="header"></option>
+                                    </template>
+                                </select>
+
+                                <div x-show="mapping[field] === '__fixed__'" style="display: none" class="mt-2">
+                                    <input type="text" x-model="fixedValues[field]" @input="rebuildPreview()"
+                                        placeholder="Type fixed value"
+                                        class="w-full rounded border border-indigo-300 bg-indigo-50 px-2 py-1.5 text-sm text-slate-900" />
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div x-show="previewRows.length > 0" class="rounded-lg border border-emerald-200 bg-emerald-50 p-4"
+                    style="display: none">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div class="text-sm font-semibold text-emerald-900">Preview (primeiros 5 registros)</div>
+                        <div class="text-xs font-medium text-emerald-800"
+                            x-text="`${mappedRows.length} registros mapeados`"></div>
+                    </div>
+
+                    <div class="overflow-auto border border-emerald-200 rounded bg-white">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-emerald-100">
+                                <tr>
+                                    <template x-for="field in fields" :key="`head-${field}`">
+                                        <th class="text-left px-3 py-2 font-semibold text-emerald-900" x-text="field">
+                                        </th>
+                                    </template>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(row, rowIndex) in previewRows" :key="`row-${rowIndex}`">
+                                    <tr class="border-t border-emerald-100">
+                                        <template x-for="field in fields" :key="`cell-${rowIndex}-${field}`">
+                                            <td class="px-3 py-2 align-top text-slate-800 break-words"
+                                                x-text="serializeValue(row[field])"></td>
+                                        </template>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <template x-if="statusMessage">
+                    <div class="rounded border px-3 py-2 text-sm font-medium"
+                        :class="statusType === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'"
+                        x-text="statusMessage"></div>
+                </template>
+            </div>
+
+            <div class="px-5 py-4 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button type="button" @click="closeModal()"
+                    class="px-4 py-2 rounded text-sm font-semibold border border-slate-300 text-slate-700 hover:bg-slate-100">
+                    Cancel
+                </button>
+                <button type="button" @click="sendMappedData()" :disabled="sending || mappedRows.length === 0" :class="{
+						'bg-indigo-600 hover:bg-indigo-700': !sending && mappedRows.length > 0,
+						'bg-slate-300 cursor-not-allowed': sending || mappedRows.length === 0,
+					}" class="px-4 py-2 rounded text-sm font-semibold text-white transition-colors">
+                    <span x-text="sending ? 'Sending...' : 'Send to Route'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function fileUploaderModal() {
+        const FIELDS = [
+            "order",
+            "sku",
+            "qty",
+        ];
+
+        const SUBMIT_URL = "{{ url_for('receive_from_file') }}";
+        const CSV_SEPARATORS = [",", ";", "\t", "|"];
+
+        return {
+            isOpen: false,
+            fields: FIELDS,
+            submitUrl: SUBMIT_URL,
+            sending: false,
+            statusMessage: "",
+            statusType: "success",
+
+            fileName: "",
+            fileType: "",
+            isCsv: false,
+            csvContent: "",
+            separator: ",",
+            detectedSeparator: ",",
+            firstRowIsHeader: true,
+            rawMatrix: [],
+
+            headers: [],
+            rawRows: [],
+            mapping: {},
+            fixedValues: {},
+            mappedRows: [],
+            previewRows: [],
+
+            openModal() {
+                this.isOpen = true;
+            },
+
+            closeModal() {
+                this.isOpen = false;
+                this.fileName = "";
+                if (this.$refs.fileInput) {
+                    this.$refs.fileInput.value = "";
+                }
+            },
+
+            clearStatus() {
+                this.statusMessage = "";
+                this.statusType = "success";
+            },
+
+            resetParsedData() {
+                this.fileType = "";
+                this.isCsv = false;
+                this.csvContent = "";
+                this.separator = ",";
+                this.detectedSeparator = ",";
+                this.firstRowIsHeader = true;
+                this.rawMatrix = [];
+                this.headers = [];
+                this.rawRows = [];
+                this.mapping = {};
+                this.fixedValues = {};
+                this.mappedRows = [];
+                this.previewRows = [];
+            },
+
+            separatorLabel(separator) {
+                if (separator === ",") return "Comma (,)";
+                if (separator === ";") return "Semicolon (;)";
+                if (separator === "\t") return "Tab (\\t)";
+                if (separator === "|") return "Pipe (|)";
+                return separator;
+            },
+
+            serializeValue(value) {
+                if (value === null || value === undefined) {
+                    return "";
+                }
+
+                if (typeof value === "object") {
+                    try {
+                        return JSON.stringify(value);
+                    } catch (error) {
+                        return String(value);
+                    }
+                }
+
+                return String(value);
+            },
+
+            async onFileChange(event) {
+                this.clearStatus();
+                this.resetParsedData();
+
+                const file = event.target.files && event.target.files[0];
+                if (!file) {
+                    this.fileName = "";
+                    return;
+                }
+
+                this.fileName = file.name;
+                const extension = file.name.toLowerCase().split(".").pop();
+
+                try {
+                    if (extension === "csv") {
+                        this.fileType = "csv";
+                        this.isCsv = true;
+                        await this.loadCsv(file);
+                        return;
+                    }
+
+                    if (extension === "xls" || extension === "xlsx") {
+                        this.fileType = "excel";
+                        this.isCsv = false;
+                        await this.loadExcel(file);
+                        return;
+                    }
+
+                    this.statusType = "error";
+                    this.statusMessage = "Formato nao suportado. Use CSV, XLS ou XLSX.";
+                } catch (error) {
+                    console.error("Error loading file:", error);
+                    this.statusType = "error";
+                    this.statusMessage = "Falha ao processar arquivo.";
+                }
+            },
+
+            async loadCsv(file) {
+                this.csvContent = await file.text();
+                this.detectedSeparator = this.detectCsvSeparator(this.csvContent);
+                this.separator = this.detectedSeparator;
+                this.reparseCsv();
+            },
+
+            reparseCsv() {
+                try {
+                    this.rawMatrix = this.parseCsvToMatrix(this.csvContent, this.separator);
+                    this.applyMatrixToStructuredData(this.rawMatrix);
+                } catch (error) {
+                    console.error("Error parsing CSV:", error);
+                    this.statusType = "error";
+                    this.statusMessage = "Nao foi possivel ler o CSV com esse separador.";
+                }
+            },
+
+            reparseCurrentFile() {
+                if (!this.fileType) {
+                    return;
+                }
+
+                if (this.fileType === "csv") {
+                    this.reparseCsv();
+                    return;
+                }
+
+                if (this.fileType === "excel") {
+                    this.applyMatrixToStructuredData(this.rawMatrix);
+                }
+            },
+
+            async loadExcel(file) {
+                await this.ensureXlsxLibrary();
+
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = window.XLSX.read(arrayBuffer, { type: "array" });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                this.rawMatrix = window.XLSX.utils.sheet_to_json(worksheet, {
+                    header: 1,
+                    defval: "",
+                    raw: false,
+                });
+
+                this.applyMatrixToStructuredData(this.rawMatrix);
+            },
+
+            async ensureXlsxLibrary() {
+                if (window.XLSX) {
+                    return;
+                }
+
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement("script");
+                    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+                    script.onload = resolve;
+                    script.onerror = () => reject(new Error("Failed to load XLSX library"));
+                    document.head.appendChild(script);
+                });
+            },
+
+            detectCsvSeparator(text) {
+                const lines = text
+                    .split(/\r?\n/)
+                    .map((line) => line.trim())
+                    .filter((line) => line.length > 0)
+                    .slice(0, 5);
+
+                if (lines.length === 0) {
+                    return ",";
+                }
+
+                let bestSeparator = ",";
+                let bestScore = -1;
+
+                for (const candidate of CSV_SEPARATORS) {
+                    let score = 0;
+                    for (const line of lines) {
+                        score += this.countSeparatorOutsideQuotes(line, candidate);
+                    }
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestSeparator = candidate;
+                    }
+                }
+
+                return bestSeparator;
+            },
+
+            countSeparatorOutsideQuotes(line, separator) {
+                let inQuotes = false;
+                let count = 0;
+
+                for (let index = 0; index < line.length; index += 1) {
+                    const char = line[index];
+                    if (char === '"') {
+                        const nextChar = line[index + 1];
+                        if (inQuotes && nextChar === '"') {
+                            index += 1;
+                            continue;
+                        }
+                        inQuotes = !inQuotes;
+                        continue;
+                    }
+
+                    if (!inQuotes && char === separator) {
+                        count += 1;
+                    }
+                }
+
+                return count;
+            },
+
+            parseCsvToMatrix(text, separator) {
+                const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+                if (lines.length === 0) {
+                    return [];
+                }
+
+                return lines.map((line) => this.parseCsvLine(line, separator));
+            },
+
+            parseCsvLine(line, separator) {
+                const cells = [];
+                let cell = "";
+                let inQuotes = false;
+
+                for (let index = 0; index < line.length; index += 1) {
+                    const char = line[index];
+
+                    if (char === '"') {
+                        const nextChar = line[index + 1];
+                        if (inQuotes && nextChar === '"') {
+                            cell += '"';
+                            index += 1;
+                        } else {
+                            inQuotes = !inQuotes;
+                        }
+                        continue;
+                    }
+
+                    if (!inQuotes && char === separator) {
+                        cells.push(cell.trim());
+                        cell = "";
+                        continue;
+                    }
+
+                    cell += char;
+                }
+
+                cells.push(cell.trim());
+                return cells;
+            },
+
+            applyMatrixToStructuredData(matrix) {
+                if (!Array.isArray(matrix) || matrix.length === 0) {
+                    this.headers = [];
+                    this.rawRows = [];
+                    this.mapping = {};
+                    this.mappedRows = [];
+                    this.previewRows = [];
+                    return;
+                }
+
+                let headers = [];
+                let startDataRowIndex = 0;
+
+                if (this.firstRowIsHeader) {
+                    const rawHeaders = matrix[0] || [];
+                    headers = rawHeaders.map((header, index) => {
+                        const value = header === null || header === undefined ? "" : String(header).trim();
+                        return value || `column_${index + 1}`;
+                    });
+                    startDataRowIndex = 1;
+                } else {
+                    const maxColumns = matrix.reduce((max, row) => {
+                        const rowLength = Array.isArray(row) ? row.length : 0;
+                        return Math.max(max, rowLength);
+                    }, 0);
+
+                    headers = Array.from({ length: maxColumns }, (_, index) => `column_${index + 1}`);
+                    startDataRowIndex = 0;
+                }
+
+                const rows = [];
+                for (let rowIndex = startDataRowIndex; rowIndex < matrix.length; rowIndex += 1) {
+                    const sourceRow = matrix[rowIndex] || [];
+                    const row = {};
+                    let hasAnyValue = false;
+
+                    headers.forEach((header, columnIndex) => {
+                        const value = sourceRow[columnIndex] ?? "";
+                        row[header] = value;
+                        if (String(value).trim() !== "") {
+                            hasAnyValue = true;
+                        }
+                    });
+
+                    if (hasAnyValue) {
+                        rows.push(row);
+                    }
+                }
+
+                this.headers = headers;
+                this.rawRows = rows;
+                this.initializeFieldMapping();
+                this.rebuildPreview();
+            },
+
+            initializeFieldMapping() {
+                const nextMapping = {};
+                const lowerHeaderMap = {};
+
+                this.headers.forEach((header) => {
+                    lowerHeaderMap[header.toLowerCase()] = header;
+                });
+
+                this.fields.forEach((field) => {
+                    const currentValue = this.mapping[field] || "";
+
+                    if (currentValue === "__fixed__") {
+                        nextMapping[field] = "__fixed__";
+                        if (!(field in this.fixedValues)) {
+                            this.fixedValues[field] = "";
+                        }
+                        return;
+                    }
+
+                    if (currentValue && this.headers.includes(currentValue)) {
+                        nextMapping[field] = currentValue;
+                        return;
+                    }
+
+                    const autoMatch = lowerHeaderMap[field.toLowerCase()];
+                    nextMapping[field] = autoMatch || "";
+                });
+
+                this.mapping = nextMapping;
+            },
+
+            rebuildPreview() {
+                this.mappedRows = this.rawRows.map((row) => {
+                    const mapped = {};
+                    this.fields.forEach((field) => {
+                        const selectedHeader = this.mapping[field];
+
+                        if (selectedHeader === "__fixed__") {
+                            mapped[field] = this.fixedValues[field] ?? "";
+                            return;
+                        }
+
+                        mapped[field] = selectedHeader ? row[selectedHeader] ?? "" : "";
+                    });
+                    return mapped;
+                });
+
+                this.previewRows = this.mappedRows.slice(0, 5);
+            },
+
+            async sendMappedData() {
+                if (this.sending || this.mappedRows.length === 0) {
+                    return;
+                }
+
+                this.clearStatus();
+                this.sending = true;
+
+                try {
+                    const response = await fetch(this.submitUrl, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(this.mappedRows),
+                    });
+
+                    if (!response.ok) {
+                        const responseText = await response.text();
+                        throw new Error(responseText || `HTTP ${response.status}`);
+                    }
+
+                    const successMessage = `Sucesso: ${this.mappedRows.length} registros enviados.`;
+
+                    if (typeof window.showAlert === "function") {
+                        window.showAlert(successMessage, "success", 5000, "toast");
+                    } else {
+                        this.statusType = "success";
+                        this.statusMessage = successMessage;
+                    }
+
+                    this.closeModal();
+                    this.resetParsedData();
+                    this.fileName = "";
+                } catch (error) {
+                    console.error("Error sending mapped data:", error);
+                    this.statusType = "error";
+                    this.statusMessage = "Falha ao enviar dados para a rota configurada.";
+                } finally {
+                    this.sending = false;
+                }
+            },
+        };
+    }
+</script>

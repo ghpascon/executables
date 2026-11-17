@@ -1,0 +1,675 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="max-w-6xl mx-auto px-4 py-6">
+  <div class="bg-white p-6 rounded-lg shadow">
+    <h2 class="text-2xl font-semibold mb-4">Print</h2>
+
+    <div id="devices-section" class="mb-6">
+      <label class="block text-sm font-medium text-gray-700 mb-2">Select Printer Device</label>
+      <div class="flex gap-3 items-center">
+        <select id="deviceSelect" class="border rounded p-2 w-full"></select>
+        <button id="refreshDevicesBtn" class="px-3 py-2 bg-white border rounded hover:bg-gray-100">Refresh</button>
+      </div>
+      <p id="deviceInfo" class="text-sm text-gray-600 mt-2"></p>
+    </div>
+
+    <div class="mb-6 border-t pt-6">
+      <div class="flex gap-4 mb-4">
+        <button id="tabPasteBtn" class="px-4 py-2 bg-blue-600 text-white rounded">Paste ZPL</button>
+        <button id="tabFileBtn" class="px-4 py-2 bg-gray-100 rounded">Upload CSV / Excel</button>
+      </div>
+
+      <div id="pasteTab" class="space-y-3">
+        <label for="zplText" class="block text-sm font-medium text-gray-700">ZPL to Print</label>
+        <textarea id="zplText" rows="10" class="w-full border rounded p-2 font-mono text-xs"></textarea>
+        <div class="flex gap-3">
+          <button id="addQueueBtn" class="px-4 py-2 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700">Add to
+            Queue</button>
+        </div>
+      </div>
+
+      <div id="fileTab" class="hidden space-y-3">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center">
+          <input id="fileInput" type="file" accept=".csv,.tsv,.txt,.zpl,.xls,.xlsx" class="hidden" />
+          <button id="pickFileBtn" type="button"
+            class="inline-flex items-center justify-center px-4 py-2 bg-slate-800 text-white rounded-md shadow hover:bg-slate-900 transition-colors">
+            Select file
+          </button>
+          <p id="fileNameLabel" class="text-sm text-gray-600 truncate">No file selected</p>
+          <button id="clearFileBtn" type="button"
+            class="hidden px-3 py-2 text-sm bg-white border rounded-md hover:bg-gray-50">
+            Clear
+          </button>
+        </div>
+        <div class="flex flex-col gap-3 md:flex-row md:items-center">
+          <select id="separatorSelect" class="border rounded p-2">
+            <option value="auto">Auto-detect</option>
+            <option value="none">No separator (full line = ZPL)</option>
+            <option value=",">Comma (,)</option>
+            <option value=";">Semicolon (;)</option>
+            <option value="tab">Tab (\t)</option>
+            <option value="|">Pipe (|)</option>
+          </select>
+          <label class="inline-flex items-center"><input type="checkbox" id="hasHeader" checked class="mr-2"> First row
+            is header</label>
+        </div>
+        <p class="text-xs text-gray-500">Tip: if your ZPL contains commas, use "No separator" or upload one ZPL per
+          line.</p>
+        <div>
+          <label class="block text-sm font-medium">Column for ZPL</label>
+          <select id="columnSelect" class="border rounded p-2 w-full"></select>
+        </div>
+        <div>
+          <button id="previewBtn" class="px-4 py-2 bg-blue-600 text-white rounded">Preview</button>
+          <button id="sendFileBtn" disabled
+            class="px-4 py-2 bg-yellow-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">Add All
+            to Queue</button>
+        </div>
+        <div id="previewArea" class="mt-3"></div>
+        <p id="fileStatus" class="text-sm text-gray-600" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <div id="messages" class="mt-4"></div>
+  </div>
+</div>
+
+<script>
+  // Inline script: uses server endpoints via `url_for`
+  const URLS = {
+    getDevices: "{{ url_for('get_devices_info') }}",
+    print: "{{ url_for('print_to_device', device_name='__DEVICE__') }}",
+    addToQueue: "{{ url_for('add_to_print_queue', device_name='__DEVICE__') }}"
+  };
+
+  // DOM refs
+  const deviceSelect = document.getElementById('deviceSelect');
+  const deviceInfo = document.getElementById('deviceInfo');
+  const refreshDevicesBtn = document.getElementById('refreshDevicesBtn');
+  const pasteTab = document.getElementById('pasteTab');
+  const fileTab = document.getElementById('fileTab');
+  const tabPasteBtn = document.getElementById('tabPasteBtn');
+  const tabFileBtn = document.getElementById('tabFileBtn');
+  const zplText = document.getElementById('zplText');
+  const addQueueBtn = document.getElementById('addQueueBtn');
+  const fileInput = document.getElementById('fileInput');
+  const pickFileBtn = document.getElementById('pickFileBtn');
+  const clearFileBtn = document.getElementById('clearFileBtn');
+  const fileNameLabel = document.getElementById('fileNameLabel');
+  const separatorSelect = document.getElementById('separatorSelect');
+  const hasHeaderCheckbox = document.getElementById('hasHeader');
+  const columnSelect = document.getElementById('columnSelect');
+  const previewBtn = document.getElementById('previewBtn');
+  const sendFileBtn = document.getElementById('sendFileBtn');
+  const previewArea = document.getElementById('previewArea');
+  const fileStatus = document.getElementById('fileStatus');
+  const messages = document.getElementById('messages');
+
+  let devices = [];
+  let parsedRows = [];
+  let lastLoadedFile = null;
+  let lastLoadedType = null;
+  let isLoadingFile = false;
+  let isSendingQueue = false;
+
+  function showMessage(text, type = 'info') {
+    // prefer global showAlert if available
+    if (window.showAlert) {
+      window.showAlert(text, type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info'));
+      return;
+    }
+    const color = type === 'error' ? 'red' : 'green';
+    messages.innerHTML = `<div class="p-2 rounded text-sm bg-${color}-100 text-${color}-800">${text}</div>`;
+    setTimeout(() => messages.innerHTML = '', 5000);
+  }
+
+  async function fetchDevices() {
+    try {
+      const resp = await fetch(URLS.getDevices, { headers: { 'Accept': 'application/json' } });
+      if (!resp.ok) throw new Error('Failed to fetch devices');
+      const list = await resp.json();
+      // filter by device_type == 'printer'
+      devices = (Array.isArray(list) ? list : []).filter(d => (d.device_type || '').toLowerCase() === 'printer');
+      populateDeviceSelect();
+    } catch (err) {
+      console.error(err);
+      if (window.showAlert) showAlert('Error loading devices: ' + err.message, 'error');
+    }
+  }
+
+  function populateDeviceSelect() {
+    const prev = deviceSelect.value;
+    deviceSelect.innerHTML = '';
+    devices.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.name;
+      // show only device name per user request
+      opt.textContent = d.name;
+      deviceSelect.appendChild(opt);
+    });
+    if (devices.length === 0) {
+      deviceSelect.innerHTML = '<option value="">No printers available</option>';
+      deviceInfo.textContent = '';
+      return;
+    }
+    if (prev) {
+      const hasPrev = Array.from(deviceSelect.options).some(o => o.value === prev);
+      deviceSelect.value = hasPrev ? prev : devices[0].name;
+    } else {
+      deviceSelect.value = devices[0].name;
+    }
+    updateDeviceInfo();
+  }
+
+  function updateDeviceInfo() {
+    const d = devices.find(dd => dd.name === deviceSelect.value);
+    if (!d) { deviceInfo.textContent = ''; return; }
+    // display only the device name on the page
+    deviceInfo.textContent = d.name || '';
+  }
+
+  deviceSelect.addEventListener('change', updateDeviceInfo);
+  refreshDevicesBtn.addEventListener('click', fetchDevices);
+
+  // tabs
+  tabPasteBtn.addEventListener('click', () => {
+    pasteTab.classList.remove('hidden'); fileTab.classList.add('hidden');
+
+    // active = paste
+    tabPasteBtn.classList.remove('bg-gray-100');
+    tabPasteBtn.classList.add('bg-blue-600', 'text-white');
+
+    tabFileBtn.classList.remove('bg-blue-600', 'text-white');
+    tabFileBtn.classList.add('bg-gray-100');
+  });
+  tabFileBtn.addEventListener('click', () => {
+    pasteTab.classList.add('hidden'); fileTab.classList.remove('hidden');
+
+    // active = file
+    tabFileBtn.classList.remove('bg-gray-100');
+    tabFileBtn.classList.add('bg-blue-600', 'text-white');
+
+    tabPasteBtn.classList.remove('bg-blue-600', 'text-white');
+    tabPasteBtn.classList.add('bg-gray-100');
+  });
+
+  // print actions
+  // Print now removed: use Add to Queue only
+
+  async function postAddToQueue(zplArray) {
+    if (isSendingQueue) return;
+    const device = deviceSelect.value;
+    if (!device) { showMessage('Select a printer.', 'error'); return; }
+    const labels = Array.isArray(zplArray) ? zplArray : [zplArray];
+    const batchSize = 1000;
+    const totalBatches = Math.ceil(labels.length / batchSize);
+    if (labels.length === 0) return;
+
+    isSendingQueue = true;
+    addQueueBtn.disabled = true;
+    sendFileBtn.disabled = true;
+    try {
+      const url = URLS.addToQueue.replace('__DEVICE__', encodeURIComponent(device));
+      for (let start = 0; start < labels.length; start += batchSize) {
+        const batch = labels.slice(start, start + batchSize);
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(batch.map(zpl => ({ zpl })))
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data?.message || JSON.stringify(data) || 'Add to queue failed');
+        const completedBatches = Math.floor(start / batchSize) + 1;
+        fileStatus.textContent = `Enviando lote ${completedBatches} de ${totalBatches} (${Math.min(start + batch.length, labels.length)} de ${labels.length})...`;
+        // Let the browser paint progress and process pending UI events between requests.
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      fileStatus.textContent = `${labels.length} etiqueta(s) adicionada(s) à fila.`;
+      showMessage(`${labels.length} etiqueta(s) adicionada(s) à fila`, 'success');
+      fetchDevices();
+    } catch (err) {
+      console.error(err);
+      showMessage('Queue error: ' + err.message, 'error');
+      fileStatus.textContent = `Falha ao enviar lote: ${err.message}`;
+    } finally {
+      isSendingQueue = false;
+      addQueueBtn.disabled = false;
+      sendFileBtn.disabled = parsedRows.length === 0;
+    }
+  }
+
+  addQueueBtn.addEventListener('click', () => {
+    const zpl = zplText.value.trim();
+    if (!zpl) { showMessage('ZPL is empty', 'error'); return; }
+    postAddToQueue(zpl);
+  });
+
+  // File parsing helpers
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function normalizeText(text) {
+    return String(text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  }
+
+  function countSeparatorOutsideQuotes(line, sep) {
+    let inQuotes = false;
+    let count = 0;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+      if (!inQuotes && ch === sep) count++;
+    }
+    return count;
+  }
+
+  function detectSeparatorFromSample(lines) {
+    const candidates = [',', ';', '\t', '|'];
+    const sample = lines.filter(l => l.trim() !== '').slice(0, 30);
+    if (sample.length === 0) return null;
+
+    let best = { sep: null, score: -Infinity, rowsWithSep: 0 };
+    for (const sep of candidates) {
+      const counts = sample.map(line => countSeparatorOutsideQuotes(line, sep));
+      const rowsWithSep = counts.filter(c => c > 0).length;
+      if (rowsWithSep === 0) continue;
+
+      const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
+      const variance = counts.reduce((acc, n) => acc + Math.pow(n - mean, 2), 0) / counts.length;
+      const score = rowsWithSep * 4 + mean - variance;
+      if (score > best.score) {
+        best = { sep, score, rowsWithSep };
+      }
+    }
+
+    return best.rowsWithSep > 0 ? best.sep : null;
+  }
+
+  function previewRowsAsTable(rows, headers) {
+    if (!rows || rows.length === 0) { previewArea.innerHTML = '<div class="text-sm text-gray-600">No preview available</div>'; return; }
+    const max = Math.min(rows.length, 10);
+    let html = '<div class="overflow-auto border rounded p-2"><table class="min-w-full text-sm"><thead><tr>';
+    if (headers) {
+      for (const h of headers) { html += `<th class="px-2 py-1 text-left font-medium">${escapeHtml(h)}</th>`; }
+    } else {
+      for (let i = 0; i < rows[0].length; i++) html += `<th class="px-2 py-1 text-left font-medium">Col ${i + 1}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    for (let i = 0; i < max; i++) {
+      const r = rows[i];
+      html += '<tr>';
+      if (headers) {
+        for (const h of headers) html += `<td class="px-2 py-1">${escapeHtml(r[h] ?? '')}</td>`;
+      } else {
+        for (let c = 0; c < r.length; c++) html += `<td class="px-2 py-1">${escapeHtml(r[c] ?? '')}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+    previewArea.innerHTML = html;
+  }
+
+  async function parseTextFileFallback(file, delimiter, header) {
+    const reader = file.stream().getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let headers = null;
+    let rowCount = 0;
+    const rows = [];
+    const sep = delimiter || '\0';
+
+    function addLine(line) {
+      if (!line.trim()) return;
+      if (rowCount === 0 && rows.length === 0 && headers === null) line = line.replace(/^\uFEFF/, '');
+      const values = parseSimpleCsvLine(line, sep);
+      if (header && headers === null) {
+        headers = values;
+        return;
+      }
+      if (header) {
+        const row = {};
+        headers.forEach((name, index) => { row[name] = values[index] ?? ''; });
+        rows.push(row);
+      } else {
+        rows.push(values);
+      }
+      rowCount++;
+    }
+
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+      const lines = buffer.split('\n');
+      buffer = done ? '' : lines.pop();
+      for (const line of lines) addLine(line.replace(/\r$/, ''));
+      if (rowCount > 0 && rowCount % 1000 === 0) {
+        fileStatus.textContent = `Analisando ${rowCount.toLocaleString()} linhas...`;
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      if (done) {
+        if (buffer) addLine(buffer.replace(/\r$/, ''));
+        break;
+      }
+    }
+    return rows;
+  }
+
+  async function handleCsvFile(file, separator, header) {
+    fileStatus.textContent = 'Lendo amostra e analisando arquivo...';
+    // Read only a small prefix for delimiter detection; avoid copying the entire file into memory.
+    const sampleText = normalizeText(await file.slice(0, 64 * 1024).text());
+    const sampleLines = sampleText.split('\n').filter(line => line.trim() !== '');
+    const selectedDelimiter = separator === 'none'
+      ? '\0'
+      : (separator === 'auto'
+        ? detectSeparatorFromSample(sampleLines)
+        : (separator === 'tab' ? '\t' : separator));
+
+    if (typeof window.Papa === 'undefined') {
+      try {
+        await loadScript('https://unpkg.com/papaparse@5.4.1/papaparse.min.js');
+      } catch (e) {
+        console.warn('PapaParse unavailable; using streaming fallback', e);
+      }
+    }
+
+    if (window.Papa) {
+      parsedRows = await new Promise((resolve, reject) => {
+        const rows = [];
+        window.Papa.parse(file, {
+          header,
+          skipEmptyLines: true,
+          delimiter: selectedDelimiter || undefined,
+          worker: true,
+          chunkSize: 1024 * 1024,
+          chunk(results) {
+            for (const row of results.data) rows.push(row);
+            fileStatus.textContent = `Analisando ${Math.round((results.meta.cursor / file.size) * 100)}%...`;
+          },
+          complete() { resolve(rows); },
+          error(error) { reject(error); }
+        });
+      });
+    } else {
+      parsedRows = await parseTextFileFallback(file, selectedDelimiter, header);
+    }
+
+    if (parsedRows.length === 0) {
+      fillColumnSelect([]);
+      previewArea.innerHTML = '<div class="text-sm text-gray-600">No data</div>';
+      fileStatus.textContent = 'Nenhuma linha de dados encontrada.';
+      return;
+    }
+
+    const columns = header
+      ? Object.keys(parsedRows[0] || {})
+      : parsedRows[0].map((_, index) => `Col ${index + 1}`);
+    fillColumnSelect(columns);
+    previewRowsAsTable(parsedRows, header ? columns : null);
+    fileStatus.textContent = `Arquivo analisado: ${parsedRows.length.toLocaleString()} linha(s). A prévia mostra apenas as primeiras 10.`;
+  }
+
+  function parseSimpleCsvLine(line, sep) {
+    const res = [];
+    let cur = '', inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; } else { inQuotes = !inQuotes; } continue; }
+      if (!inQuotes && ch === sep) { res.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    res.push(cur);
+    return res;
+  }
+
+  function fillColumnSelect(cols) {
+    columnSelect.innerHTML = '';
+    cols.forEach((c, idx) => {
+      const o = document.createElement('option');
+      o.value = idx;
+      o.textContent = c;
+      columnSelect.appendChild(o);
+    });
+  }
+
+  function parseExcelInWorker(buffer, hasHeader) {
+    return new Promise((resolve, reject) => {
+      const xlsxUrl = 'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js';
+      const workerSource = `
+        importScripts(${JSON.stringify(xlsxUrl)});
+        self.onmessage = function(event) {
+          try {
+            const workbook = XLSX.read(event.data.buffer, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            if (!sheet) {
+              self.postMessage({ rows: [], empty: true });
+              return;
+            }
+            const rows = XLSX.utils.sheet_to_json(sheet, {
+              header: event.data.hasHeader ? 0 : 1,
+              defval: ''
+            });
+            self.postMessage({ rows, empty: false });
+          } catch (error) {
+            self.postMessage({ error: error.message || 'Excel parsing failed' });
+          }
+        };
+      `;
+      const workerUrl = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }));
+      let worker;
+      const finish = (callback, value) => {
+        if (worker) worker.terminate();
+        URL.revokeObjectURL(workerUrl);
+        callback(value);
+      };
+      try {
+        worker = new Worker(workerUrl);
+        worker.onmessage = event => {
+          if (event.data.error) finish(reject, new Error(event.data.error));
+          else finish(resolve, event.data);
+        };
+        worker.onerror = event => finish(reject, new Error(event.message || 'Excel worker failed'));
+        worker.postMessage({ buffer, hasHeader }, [buffer]);
+      } catch (error) {
+        finish(reject, error);
+      }
+    });
+  }
+
+  async function handleFile(file) {
+    if (isLoadingFile) return;
+    isLoadingFile = true;
+    pickFileBtn.disabled = true;
+    clearFileBtn.disabled = true;
+    separatorSelect.disabled = true;
+    hasHeaderCheckbox.disabled = true;
+    sendFileBtn.disabled = true;
+    parsedRows = [];
+    previewArea.innerHTML = '';
+    fileStatus.textContent = 'Preparando arquivo...';
+    const name = file.name.toLowerCase();
+    try {
+      if (name.endsWith('.zpl')) {
+        separatorSelect.value = 'none';
+        hasHeaderCheckbox.checked = false;
+      }
+      if (name.endsWith('.csv') || name.endsWith('.txt') || name.endsWith('.tsv') || name.endsWith('.zpl')) {
+        lastLoadedType = 'text';
+        await handleCsvFile(file, separatorSelect.value, hasHeaderCheckbox.checked);
+      } else if (name.endsWith('.xls') || name.endsWith('.xlsx')) {
+        lastLoadedType = 'excel';
+        fileStatus.textContent = 'Analisando planilha...';
+        let result;
+        try {
+          result = await parseExcelInWorker(await file.arrayBuffer(), hasHeaderCheckbox.checked);
+        } catch (workerError) {
+          console.warn('Excel worker unavailable; falling back to main thread', workerError);
+          if (typeof window.XLSX === 'undefined') {
+            await loadScript('https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js');
+          }
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          const workbook = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          result = {
+            rows: sheet ? window.XLSX.utils.sheet_to_json(sheet, {
+              header: hasHeaderCheckbox.checked ? 0 : 1,
+              defval: ''
+            }) : [],
+            empty: !sheet
+          };
+        }
+        parsedRows = result.rows;
+        if (result.empty) {
+          fillColumnSelect([]);
+          previewArea.innerHTML = '<div class="text-sm text-gray-600">Empty sheet</div>';
+          fileStatus.textContent = 'A planilha está vazia.';
+          return;
+        }
+        const columns = hasHeaderCheckbox.checked
+          ? Object.keys(parsedRows[0] || {})
+          : (parsedRows[0] || []).map((_, index) => `Col ${index + 1}`);
+        fillColumnSelect(columns);
+        previewRowsAsTable(parsedRows, hasHeaderCheckbox.checked ? columns : null);
+        fileStatus.textContent = `Arquivo analisado: ${parsedRows.length.toLocaleString()} linha(s). A prévia mostra apenas as primeiras 10.`;
+      } else {
+        throw new Error('Unsupported file type');
+      }
+      showMessage(`Loaded ${parsedRows.length} row(s) from ${file.name}`, 'success');
+    } catch (error) {
+      console.error(error);
+      fileStatus.textContent = `Erro ao processar arquivo: ${error.message}`;
+      showMessage('File processing error: ' + error.message, 'error');
+    } finally {
+      isLoadingFile = false;
+      pickFileBtn.disabled = false;
+      clearFileBtn.disabled = false;
+      separatorSelect.disabled = false;
+      hasHeaderCheckbox.disabled = false;
+      sendFileBtn.disabled = parsedRows.length === 0;
+    }
+  }
+
+  function resetLoadedFile() {
+    fileInput.value = '';
+    lastLoadedFile = null;
+    lastLoadedType = null;
+    parsedRows = [];
+    fillColumnSelect([]);
+    previewArea.innerHTML = '';
+    fileStatus.textContent = '';
+    fileNameLabel.textContent = 'No file selected';
+    clearFileBtn.classList.add('hidden');
+  }
+
+  function setLoadedFileUI(file) {
+    fileNameLabel.textContent = file ? file.name : 'No file selected';
+    if (file) clearFileBtn.classList.remove('hidden');
+    else clearFileBtn.classList.add('hidden');
+  }
+
+  pickFileBtn.addEventListener('click', () => fileInput.click());
+
+  clearFileBtn.addEventListener('click', () => {
+    resetLoadedFile();
+    showMessage('File selection cleared', 'info');
+  });
+
+  fileInput.addEventListener('change', async (evt) => {
+    const f = evt.target.files[0];
+    if (!f) return;
+    lastLoadedFile = f;
+    setLoadedFileUI(f);
+    await handleFile(f);
+  });
+
+  // re-parse when separator or header option changes
+  separatorSelect.addEventListener('change', async () => {
+    if (!lastLoadedFile || !lastLoadedType) return;
+    try {
+      if (lastLoadedType === 'text') {
+        await handleFile(lastLoadedFile);
+      }
+    } catch (e) {
+      console.error(e);
+      if (window.showAlert) showAlert('Error reloading file: ' + e.message, 'error');
+    }
+  });
+
+  hasHeaderCheckbox.addEventListener('change', async () => {
+    if (!lastLoadedFile || !lastLoadedType) return;
+    try {
+      if (lastLoadedType === 'text') {
+        await handleFile(lastLoadedFile);
+      } else if (lastLoadedType === 'excel') {
+        await handleFile(lastLoadedFile);
+      }
+    } catch (e) {
+      console.error(e);
+      if (window.showAlert) showAlert('Error reloading file: ' + e.message, 'error');
+    }
+  });
+
+  previewBtn.addEventListener('click', () => {
+    if (!parsedRows || parsedRows.length === 0) { showMessage('No parsed data to preview', 'error'); return; }
+    if (Array.isArray(parsedRows) && parsedRows.length > 0) {
+      if (typeof parsedRows[0] === 'object' && !Array.isArray(parsedRows[0])) {
+        previewRowsAsTable(parsedRows, Object.keys(parsedRows[0]));
+      } else {
+        previewRowsAsTable(parsedRows, null);
+      }
+    }
+  });
+
+  sendFileBtn.addEventListener('click', async () => {
+    if (!parsedRows || parsedRows.length === 0) { showMessage('No data parsed', 'error'); return; }
+    const colIndex = parseInt(columnSelect.value, 10);
+    const zplValues = [];
+    if (typeof parsedRows[0] === 'object' && !Array.isArray(parsedRows[0])) {
+      const colName = Object.keys(parsedRows[0])[colIndex];
+      for (const r of parsedRows) {
+        const z = String(r[colName] ?? '').trim();
+        if (z) zplValues.push(z);
+      }
+    } else {
+      for (const r of parsedRows) {
+        const z = String(r[colIndex] ?? '').trim();
+        if (z) zplValues.push(z);
+      }
+    }
+    if (zplValues.length === 0) { showMessage('No ZPL values found in chosen column', 'error'); return; }
+    await postAddToQueue(zplValues);
+  });
+
+  // dynamic script loader
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = () => resolve();
+      s.onerror = (e) => reject(new Error('Failed to load ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  // init
+  fetchDevices();
+  setInterval(fetchDevices, 3000);
+
+</script>
+
+{% endblock %}

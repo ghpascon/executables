@@ -1,0 +1,74 @@
+<div x-data="dispatchesList()" x-init="init()" @dispatches-updated.window="fetchDispatches()"
+  class="p-4 border rounded bg-white">
+  <div x-show="loading" class="py-3 text-center text-gray-500">Loading dispatches…</div>
+  <div x-show="!loading">
+    <div class="grid grid-cols-1 gap-2 mb-4">
+      <template x-for="dispatch in dispatches" :key="dispatch">
+        <div class="flex items-center justify-between py-2 border-b">
+          <span x-text="dispatch"></span>
+          <div>
+            <button @click="editDispatch(dispatch)" class="text-blue-600 mr-2">Edit</button>
+            <button @click="deleteDispatch(dispatch)" class="text-red-600">Delete</button>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div x-show="dispatches.length === 0" class="py-6 text-center text-gray-400">No dispatches found.</div>
+  </div>
+</div>
+<script>
+  function dispatchesList() {
+    return {
+      dispatches: [],
+      loading: false,
+      _fetching: false,
+      async init() {
+        await this.fetchDispatches(true);
+        window.addEventListener('dispatches-updated', () => {
+          this.fetchDispatches(true);
+        });
+      },
+      async fetchDispatches(force = false) {
+        if (this._fetching) return;
+        this._fetching = true;
+        if (force || this.dispatches.length === 0) this.loading = true;
+        try {
+          const res = await fetch('{{ url_for("get_dispatches") }}');
+          if (res.ok) {
+            const data = await res.json();
+            this.dispatches = Array.isArray(data) ? data : [];
+          } else {
+            if (force) this.dispatches = [];
+          }
+        } catch {
+          if (force) this.dispatches = [];
+        } finally {
+          this.loading = false;
+          this._fetching = false;
+        }
+      },
+      async editDispatch(dispatchName) {
+        try {
+          const res = await fetch('{{ url_for("get_dispatch", dispatch_name="__NAME__") }}'.replace("__NAME__", dispatchName));
+          if (!res.ok) return;
+          const content = await res.json();
+          window.dispatchEvent(new CustomEvent('edit-dispatch', { detail: { name: dispatchName, content } }));
+        } catch { }
+      },
+      async deleteDispatch(dispatchName) {
+        if (!confirm(`Delete dispatch '${dispatchName}'?`)) return;
+        try {
+          const res = await fetch('{{ url_for("delete_dispatch", dispatch_name="__NAME__") }}'.replace("__NAME__", dispatchName), { method: 'DELETE' });
+          if (res.ok) {
+            window.showAlert('Dispatch deleted', 'success');
+            this.fetchDispatches(true);
+          } else {
+            window.showAlert('Failed to delete dispatch', 'error');
+          }
+        } catch (err) {
+          window.showAlert('Error deleting dispatch', 'error');
+        }
+      }
+    }
+  }
+</script>

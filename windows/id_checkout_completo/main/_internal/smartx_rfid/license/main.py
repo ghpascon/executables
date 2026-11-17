@@ -1,0 +1,273 @@
+import json
+import base64
+import hashlib
+import logging
+import machineid
+import platform
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
+
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.exceptions import InvalidSignature
+
+
+class LicenseManager:
+    """
+    Professional License Manager
+
+    Features:
+    - RSA signing
+    - Hardware binding
+    - Expiration support
+    - Dict-like access
+    - License request string (for activation systems)
+    """
+
+    # ==========================================================
+    # INIT
+    # ==========================================================
+    def __init__(self, private_key_pem: Optional[str] = None, public_key_pem: Optional[str] = None):
+        self.private_key = None
+        self.public_key = None
+        self.public_key_pem: Optional[str] = None
+        self.license_data: Optional[Dict[str, Any]] = None
+        # Cached parsed expiration datetime (avoid repeated parsing)
+        self._expires_at: Optional[datetime] = None
+
+        if private_key_pem:
+            self.load_private_key(private_key_pem)
+
+        if public_key_pem:
+            self.load_public_key(public_key_pem)
+
+    # ==========================================================
+    # LICENSE REQUEST STRING
+    # ==========================================================
+    def build_license_request_string(self, public_key_pem: str | None = None, hardware_id: Optional[str] = None) -> str:
+        """
+        Returns a base64 string containing hardware_id and public_key.
+        Useful for license activation systems.
+        """
+        if not self.public_key_pem and not public_key_pem:
+            raise Exception("Public key must be provided either in constructor or as argument")
+        if public_key_pem is None:
+            public_key_pem = self.public_key_pem
+        if hardware_id is None:
+            hardware_id = LicenseManager.get_hardware_id()
+
+        payload = json.dumps({"hardware_id": hardware_id, "public_key": public_key_pem}, sort_keys=True).encode()
+
+        return base64.b64encode(payload).decode()
+
+    @staticmethod
+    def parse_license_request_string(request_string: str) -> Dict[str, str]:
+        """
+        Decodes a license request string.
+        Returns dict with hardware_id and public_key.
+        """
+
+        try:
+            payload = base64.b64decode(request_string)
+            return json.loads(payload.decode())
+        except Exception as e:
+            raise ValueError(f"Invalid license request string: {e}")
+
+    # ==========================================================
+    # KEY MANAGEMENT
+    # ==========================================================
+    @staticmethod
+    def generate_key_pair(key_size: int = 2048):
+        """
+        Generate RSA key pair.
+        Returns (private_pem, public_pem)
+        """
+
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=key_size)
+
+        private_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode()
+
+        public_pem = (
+            private_key.public_key()
+            .public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo)
+            .decode()
+        )
+
+        return private_pem.strip(), public_pem.strip()
+
+    def load_private_key(self, private_key_pem: str):
+        self.private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
+
+    def load_public_key(self, public_key_pem: str):
+        self.public_key = serialization.load_pem_public_key(public_key_pem.encode())
+        self.public_key_pem = public_key_pem
+
+    # ==========================================================
+    # HARDWARE ID
+    # ==========================================================
+    @staticmethod
+    def get_hardware_id() -> str:
+        """
+        Build a stable hardware identifier using py-machineid.
+        If py-machineid is empty, use a simple platform fingerprint fallback.
+        """
+        unique_id = machineid.id().strip()
+        if not unique_id:
+            fallback_parts = [
+                platform.node().strip(),
+                platform.system().strip(),
+                platform.machine().strip(),
+                platform.processor().strip(),
+            ]
+            unique_id = "|".join(part for part in fallback_parts if part)
+            logging.warning("py-machineid empty; using simple platform fallback fingerprint")
+
+        if not unique_id:
+            raise RuntimeError("Could not determine hardware identifier")
+
+        return hashlib.sha256(unique_id.encode("utf-8")).hexdigest()
+
+    # LICENSE CREATION
+    # ==========================================================
+    def create_license(
+        self, data: Dict[str, Any], duration_days: Optional[int] = None, hardware_id: Optional[str] = None
+    ) -> str:
+        """
+        Create and sign license.
+        Requires private key.
+        """
+
+        if not self.private_key:
+            raise Exception("Private key not loaded")
+
+        license_data = data.copy()
+
+        # Hardware binding
+        if hardware_id is None:
+            hardware_id = self.get_hardware_id()
+
+        license_data["hardware_id"] = hardware_id
+
+        # Expiration
+        if duration_days is not None:
+            expires = datetime.now() + timedelta(days=duration_days)
+            license_data["expires"] = expires.isoformat()
+        elif "expires" not in license_data:
+            expires = datetime.now() + timedelta(days=365)
+            license_data["expires"] = expires.isoformat()
+
+        payload = json.dumps(license_data, sort_keys=True).encode()
+
+        signature = self.private_key.sign(payload, padding.PKCS1v15(), hashes.SHA256())
+
+        combined = payload + b"||" + signature
+        return base64.b64encode(combined).decode()
+
+    # ==========================================================
+    # LICENSE VALIDATION
+    # ==========================================================
+    def load_license(self, license_string: str):
+        if not self.public_key:
+            raise Exception("Public key not loaded")
+
+        decoded = base64.b64decode(license_string)
+        payload, signature = decoded.split(b"||")
+
+        # Verify signature
+        try:
+            self.public_key.verify(signature, payload, padding.PKCS1v15(), hashes.SHA256())
+        except InvalidSignature:
+            raise Exception("Invalid license signature")
+
+        data = json.loads(payload.decode())
+
+        # Hardware validation
+        if data.get("hardware_id") != self.get_hardware_id():
+            raise Exception("License not valid for this hardware")
+
+        # Expiration validation (parse once and cache)
+        exp_dt = None
+        expires_raw = data.get("expires")
+        if expires_raw:
+            exp_dt = datetime.fromisoformat(expires_raw)
+            if datetime.now() > exp_dt:
+                raise Exception("License expired")
+
+        self.license_data = data
+        self._expires_at = exp_dt
+        logging.info("License loaded and valid")
+
+    def validate_license(self) -> bool:
+        if not self.license_data:
+            return False
+        try:
+            exp = self._expires_at
+            if exp is None:
+                expires_raw = self.license_data.get("expires")
+                if expires_raw:
+                    exp = datetime.fromisoformat(expires_raw)
+                    self._expires_at = exp
+            if datetime.now() > exp:
+                return False
+            return True
+        except Exception:
+            return False
+
+    # ==========================================================
+    # DICT-LIKE ACCESS
+    # ==========================================================
+    def get(self, key, default=None):
+        if not self.license_data:
+            return default
+        return self.license_data.get(key, default)
+
+    def __getitem__(self, key):
+        if not self.license_data:
+            raise Exception("License not loaded")
+        return self.license_data[key]
+
+    def __contains__(self, key):
+        if not self.license_data:
+            return False
+        return key in self.license_data
+
+    # ==========================================================
+    # UTIL
+    # ==========================================================
+    def is_loaded(self) -> bool:
+        return self.license_data is not None
+
+    def is_expired(self) -> bool:
+        if not self.license_data:
+            return True
+        exp = self._expires_at
+        if exp is None:
+            expires_raw = self.license_data.get("expires")
+            if not expires_raw:
+                return False
+            try:
+                exp = datetime.fromisoformat(expires_raw)
+                self._expires_at = exp
+            except Exception:
+                return True
+        return datetime.now() > exp
+
+    def expires_in(self) -> Optional[int]:
+        if not self.license_data:
+            return None
+        exp = self._expires_at
+        if exp is None:
+            expires_raw = self.license_data.get("expires")
+            if not expires_raw:
+                return None
+            try:
+                exp = datetime.fromisoformat(expires_raw)
+                self._expires_at = exp
+            except Exception:
+                return None
+        delta = exp - datetime.now()
+        return max(delta.days, 0)
