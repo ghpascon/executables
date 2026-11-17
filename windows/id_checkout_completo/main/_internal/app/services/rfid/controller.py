@@ -266,7 +266,7 @@ class Controller:
 		query = """
 			SELECT pedido, suporte, sku, descricao, ean, quantidade, posicao
 			FROM supconf
-			WHERE UPPER(TRIM(SUPORTE)) = :support
+			WHERE UPPER(TRIM(SUPORTE)) = :support OR UPPER(TRIM(posicao)) = :support
 		"""
 		result = self.as_400.execute_query(query, {'support': support})
 		logging.info(f'Query result for support {support}: {result}')
