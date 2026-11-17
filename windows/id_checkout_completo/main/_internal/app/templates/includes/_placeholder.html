@@ -22,18 +22,12 @@
 
     <form x-show="operation === 'single'" class="mb-3 flex flex-wrap items-end gap-2"
         @submit.prevent="sendSingleValue()">
-        <label class="min-w-[160px] flex-1">
-            <span class="mb-1 block text-sm font-semibold text-slate-700">Definir o suporte</span>
-            <input x-model="singleSupport" x-ref="singleSupportInput" type="text" autofocus
-                @keydown.enter.prevent="$refs.singleEanInput.focus()" placeholder="Suporte"
+        <label class="min-w-[220px] flex-1">
+            <span class="mb-1 block text-sm font-semibold text-slate-700">Definir o agrupado</span>
+            <input x-model="singleSupport" x-ref="singleSupportInput" type="text" autofocus placeholder="Agrupado"
                 class="block w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </label>
-        <label class="min-w-[160px] flex-1">
-            <span class="mb-1 block text-sm font-semibold text-slate-700">Definir o EAN</span>
-            <input x-model="singleEan" x-ref="singleEanInput" type="text" placeholder="EAN"
-                class="block w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
-        </label>
-        <button type="submit" :disabled="loading || !singleSupport.trim() || !singleEan.trim()"
+        <button type="submit" :disabled="loading || !singleSupport.trim()"
             class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:bg-slate-300">
             <span x-text="loading ? 'Consultando...' : 'Consultar'"></span>
         </button>
@@ -180,7 +174,6 @@
         return {
             draftValue: "",
             singleSupport: "",
-            singleEan: "",
             currentData: {},
             loading: false,
             showAddBySkuModal: false,
@@ -319,7 +312,6 @@
             async init() {
                 this.finishEventHandler = () => {
                     this.singleSupport = "";
-                    this.singleEan = "";
                     this.currentData = {};
                     this.focusSingleSupport();
                 };
@@ -411,24 +403,22 @@
 
             async sendSingleValue() {
                 const support = this.singleSupport.trim();
-                const ean = this.singleEan.trim();
-                if (!support || !ean || this.loading) return;
+                if (!support || this.loading) return;
 
                 this.loading = true;
                 try {
                     const response = await fetch("{{ url_for('set_single_support') }}", {
                         method: "POST",
                         headers: { "Content-Type": "application/json", Accept: "application/json" },
-                        body: JSON.stringify({ support, ean }),
+                        body: JSON.stringify({ support }),
                     });
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.message || data.error || `HTTP ${response.status}`);
 
                     this.singleSupport = "";
-                    this.singleEan = "";
                     await this.loadCurrentValue();
                     if (typeof window.showAlert === "function") {
-                        window.showAlert(data.message || "Suporte e EAN consultados.", "success", 5000, "toast");
+                        window.showAlert(data.message || "Agrupado consultado.", "success", 5000, "toast");
                     }
                     this.focusSingleSupport();
                 } catch (error) {
@@ -460,7 +450,6 @@
 
                     this.draftValue = "";
                     this.singleSupport = "";
-                    this.singleEan = "";
                     await this.loadCurrentValue();
                     this.focusSingleSupport();
 

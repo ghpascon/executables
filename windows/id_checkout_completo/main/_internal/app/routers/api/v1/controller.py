@@ -97,10 +97,9 @@ async def delete_tid_from_write_list(tid: str):
 	summary='Get a value for placeholder',
 )
 async def get_value_placeholder():
+	support_data = rfid_manager.controller.support_data
 	return {
-		'suporte': rfid_manager.controller.support_data.support
-		if rfid_manager.controller.support_data
-		else None,
+		'suporte': support_data.support if support_data else None,
 	}
 
 
@@ -131,12 +130,11 @@ async def set_value_placeholder(value: str):
 )
 async def set_single_support(payload: dict = Body(...)):
 	support = payload.get('support')
-	ean = payload.get('ean')
-	if not isinstance(support, str) or not isinstance(ean, str):
-		return JSONResponse(status_code=400, content={'message': 'Informe o suporte e o EAN'})
+	if not isinstance(support, str):
+		return JSONResponse(status_code=400, content={'message': 'Informe o agrupado'})
 	try:
-		rfid_manager.controller.set_single_support(support, ean)
-		return {'message': f'Suporte {support} e EAN definidos com sucesso'}
+		rfid_manager.controller.set_single_support(support)
+		return {'message': f'Agrupado {support} definido com sucesso'}
 	except ValueError as e:
 		return JSONResponse(status_code=400, content={'message': str(e)})
 

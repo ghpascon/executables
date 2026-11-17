@@ -48,6 +48,7 @@ class Controller:
 		self.today_count: int | None = None
 		self.support_data: SupportData | None = None
 		self.last_serial_gtin = 0
+		self._single_saved_tags: set[str] = set()
 
 	# [ EVENTS ]
 	def on_event(self, device: dict, event_type: str, event_data):
@@ -88,12 +89,14 @@ class Controller:
 	# [ Tag Events ]
 	def on_new_tag(self, device: dict, tag: dict):
 		logging.info(f"[ TAG ] {device.get('name')} - {tag}")
+		self._persist_single_tag(tag)
 		# if not license_manager.validate_license():
 		# 	return
 		asyncio.create_task(self.integration.on_tag_integration(tag=tag))
 		asyncio.create_task(self.dispatcher.add_async(device=device, event_type='tag', data=tag))
 
 	def on_existing_tag(self, device: dict, tag: dict):
+		self._persist_single_tag(tag)
 		asyncio.create_task(self.check_target(tag))
 		if settings.ALWAYS_SEND:
 			# if not license_manager.validate_license():
@@ -102,6 +105,14 @@ class Controller:
 			asyncio.create_task(
 				self.dispatcher.add_async(device=device, event_type='tag', data=tag)
 			)
+
+	def _persist_single_tag(self, tag: dict):
+		if self.operation != 'single' or not self.support_data:
+			return
+		try:
+			self._save_single_tag(tag)
+		except Exception:
+			logging.exception('Failed to save Single tag')
 
 	# [ WRITE LIST ]
 	def create_write_list_prefix(self, epcs: list, prefix: str):
@@ -184,6 +195,7 @@ class Controller:
 			raise ValueError(f'Operação inválida: {operation}')
 		self.operation = operation
 		self.tags.clear()
+		self._single_saved_tags.clear()
 
 	def cancel_operation(self):
 		self.operation = None
@@ -272,22 +284,103 @@ class Controller:
 		logging.info(f'Query result for support {support}: {result}')
 		return result
 
-	def get_single_data(self, support: str, ean: str):
+	def get_single_data(self, support: str):
 		if not self.ensure_as_400():
 			raise ValueError('AS400 database is not available.')
+		support = support.strip().upper()
 		query = """
 			SELECT pedido, suporte, sku, descricao, ean, quantidade, posicao
 			FROM supconfsig
-			WHERE UPPER(TRIM(AGRUPADO)) = :support AND (UPPER(TRIM(EAN))) LIKE :ean
-			LIMIT 1
+			WHERE UPPER(TRIM(AGRUPADO)) = :support
+		"""
+		params = {'support': support}
+		result = self.as_400.execute_query(query, params)
+		logging.info(f'Single lookup result for support {support}: {result}')
+		return result
+
+	def _save_single_tag(self, tag: dict):
+		if not self.ensure_as_400():
+			raise ValueError('AS400 database is not available.')
+
+		identifier = tag.get('tid') or tag.get('epc')
+		if not identifier or identifier in self._single_saved_tags:
+			return False
+
+		gtin = tag.get('gtin')
+		if not gtin:
+			try:
+				gtin = SGTIN.decode(tag.get('epc')).gtin
+			except Exception:
+				return False
+		gtin = str(gtin).strip().upper()
+
+		matching_rows = []
+		for row in self.support_data.data:
+			eans = {
+				ean.strip().upper() for ean in str(row.get('ean') or '').split(';') if ean.strip()
+			}
+			if gtin in eans:
+				matching_rows.append(row)
+		if not matching_rows:
+			logging.warning(
+				'Single tag GTIN %s is not in group %s', gtin, self.support_data.support
+			)
+			return False
+
+		# Do not record more units of this GTIN than the group contains.
+		gtin_aliases = {
+			ean.strip().upper()
+			for row in matching_rows
+			for ean in str(row.get('ean') or '').split(';')
+			if ean.strip()
+		}
+		current_counts = self.tags.get_gtin_counts()
+		found = sum(
+			count
+			for current_gtin, count in current_counts.items()
+			if str(current_gtin).strip().upper() in gtin_aliases
+		)
+		expected = sum(row.get('quantidade', 0) or 0 for row in matching_rows)
+		if found > expected:
+			logging.warning('Ignoring excess Single tag for GTIN %s', gtin)
+			return False
+
+		row = matching_rows[0]
+		support = row.get('suporte') or self.support_data.support
+		try:
+			support_number = Decimal(str(support).strip())
+			if (
+				not support_number.is_finite()
+				or support_number < 0
+				or support_number != support_number.to_integral_value()
+			):
+				raise InvalidOperation
+			support = format(support_number.to_integral_value(), 'f')
+		except (InvalidOperation, TypeError, ValueError) as error:
+			raise ValueError(f'Suporte inválido para gravar em logconf: {support}') from error
+
+		query = """
+			INSERT INTO logconf
+				(suporte, bancada, data, hora, usuario, embalagem, status, codpro, quantidade, sinal)
+			VALUES
+				(:suporte, :bancada, CURRENT_DATE, CURRENT_TIME, :usuario, :embalagem,
+				 :status, :codpro, :quantidade, :sinal)
 		"""
 		params = {
-			'support': support,
-			'ean': f'%{ean}%',
+			'suporte': support,
+			'bancada': 1,
+			'usuario': self.db_user,
+			'embalagem': settings.EMBALAGEM,
+			'status': 'OK',
+			'codpro': row.get('sku'),
+			'quantidade': 1,
+			'sinal': '=',
 		}
-		result = self.as_400.execute_query(query, params)
-		logging.info(f'Single lookup result for support {support}, EAN {ean}: {result}')
-		return result
+		with self.as_400.get_session() as session:
+			self.as_400.execute_query(query, params, session=session)
+		self._single_saved_tags.add(identifier)
+		logging.info('Saved Single tag %s (GTIN %s) to logconf', identifier, gtin)
+		return True
 
 	def get_today_count(self):
 		if not self.ensure_as_400():
@@ -404,17 +497,16 @@ class Controller:
 			logging.error(f'Error setting support: {e}')
 			raise e
 
-	def set_single_support(self, support: str, ean: str):
-		if self.operation != 'single':
+	def set_single_support(self, support: str):
+		if getattr(self, 'operation', None) != 'single':
 			raise ValueError('A operação atual não é Single')
 		support = support.upper().strip()
-		ean = ean.upper().strip()
-		if not support or not ean:
-			raise ValueError('Defina o suporte e o EAN')
+		if not support:
+			raise ValueError('Defina o agrupado')
 
-		data = self.get_single_data(support, ean)
+		data = self.get_single_data(support)
 		if not data:
-			raise ValueError('Nenhum produto encontrado para esse suporte e EAN')
+			raise ValueError('Nenhum produto encontrado para esse agrupado')
 
 		data = [{key.lower(): value for key, value in row.items()} for row in data]
 		if any(not row.get('quantidade') for row in data):
@@ -422,10 +514,12 @@ class Controller:
 
 		self.support_data = SupportData(support=support, data=data)
 		self.tags.clear()
+		self._single_saved_tags.clear()
 
 	def clear_support(self):
 		self.support_data = None
 		self.tags.clear()
+		self._single_saved_tags.clear()
 
 	def compare_tags(self):
 		if not self.support_data:
@@ -488,8 +582,9 @@ class Controller:
 			raise ValueError('Existem divergências nos dados')
 
 		comparison = self.compare_tags()
-		successful = all(item.get('status') == '=' for item in comparison)
-		self._save_finish_comparison(comparison, successful)
+		if self.operation != 'single':
+			successful = all(item.get('status') == '=' for item in comparison)
+			self._save_finish_comparison(comparison, successful)
 
 		# Mark the operation as finished
 		self.support_data = None
