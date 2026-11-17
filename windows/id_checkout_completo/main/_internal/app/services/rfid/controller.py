@@ -196,6 +196,7 @@ class Controller:
 		self.operation = operation
 		self.tags.clear()
 		self._single_saved_tags.clear()
+		self.clear_support()
 
 	def cancel_operation(self):
 		self.operation = None
@@ -274,7 +275,6 @@ class Controller:
 	def get_data_by_support(self, support: str):
 		if not self.ensure_as_400():
 			raise ValueError('AS400 database is not available.')
-		support = support.strip().upper()
 		query = """
 			SELECT pedido, suporte, sku, descricao, ean, quantidade, posicao
 			FROM supconf
@@ -287,7 +287,6 @@ class Controller:
 	def get_single_data(self, support: str):
 		if not self.ensure_as_400():
 			raise ValueError('AS400 database is not available.')
-		support = support.strip().upper()
 		query = """
 			SELECT pedido, suporte, sku, descricao, ean, quantidade, posicao
 			FROM supconfsig
@@ -459,7 +458,7 @@ class Controller:
 	# Support management
 	def set_support(self, support: str):
 		try:
-			support = support.strip().upper()
+			support = support.strip().upper().lstrip('0')
 			if not support:
 				raise ValueError('Suporte não pode ser vazio')
 			data = self.get_data_by_support(support)
@@ -500,7 +499,7 @@ class Controller:
 	def set_single_support(self, support: str):
 		if getattr(self, 'operation', None) != 'single':
 			raise ValueError('A operação atual não é Single')
-		support = support.upper().strip()
+		support = support.upper().strip().lstrip('0')
 		if not support:
 			raise ValueError('Defina o agrupado')
 

@@ -46,8 +46,10 @@
             <template x-if="Object.keys(currentData).length > 0">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <template x-for="(itemValue, itemKey) in currentData" :key="itemKey">
-                        <div :class="{'md:col-span-2': Array.isArray(itemValue) && itemValue.length > 0 && typeof itemValue[0] === 'object'}"
-                            class="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <div :class="{
+                                'md:col-span-2': Array.isArray(itemValue) && itemValue.length > 0 && typeof itemValue[0] === 'object',
+                                'rounded-lg border border-blue-200 bg-blue-50 p-3': !isPrimitive(itemValue),
+                            }">
 
                             <!-- Título do card (escondido para valores primitivos) -->
                             <div x-show="!isPrimitive(itemValue)"
@@ -128,43 +130,12 @@
             </template>
 
         </div>
-        <button type="button" @click="openAddBySkuModal()"
-            class="shrink-0 self-end rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700">
-            Adicionar por SKU
-        </button>
-    </div>
-
-    <div x-show="showAddBySkuModal" x-transition.opacity @keydown.escape.window="closeAddBySkuModal()"
-        @click.self="closeAddBySkuModal()"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6" role="dialog"
-        aria-modal="true" aria-labelledby="addBySkuTitle">
-        <form @submit.prevent="addBySku()" class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-            <div class="mb-4 flex items-start justify-between gap-4">
-                <div>
-                    <h2 id="addBySkuTitle" class="text-lg font-bold text-slate-900">Adicionar por SKU</h2>
-                    <p class="mt-1 text-sm text-slate-600">Informe o GTIN para adicionar a etiqueta.</p>
-                </div>
-                <button type="button" @click="closeAddBySkuModal()" :disabled="addBySkuLoading"
-                    class="rounded p-1 text-xl leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
-                    aria-label="Fechar modal">&times;</button>
-            </div>
-
-            <label for="addBySkuGtin" class="mb-1 block text-sm font-semibold text-slate-700">GTIN</label>
-            <input id="addBySkuGtin" x-ref="addBySkuGtinInput" x-model="addBySkuGtin" type="text" inputmode="numeric"
-                autocomplete="off" placeholder="Digite o GTIN" :disabled="addBySkuLoading" required
-                class="block w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-slate-100" />
-            <p x-show="addBySkuError" x-text="addBySkuError" class="mt-2 text-sm text-red-600" role="alert"></p>
-
-            <div class="mt-5 flex justify-end gap-2">
-                <button type="button" @click="closeAddBySkuModal()" :disabled="addBySkuLoading"
-                    class="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-                    Cancelar
-                </button>
-                <button type="submit" :disabled="addBySkuLoading || !addBySkuGtin.trim()"
-                    class="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">
-                    <span x-text="addBySkuLoading ? 'Adicionando...' : 'Adicionar'">Adicionar</span>
-                </button>
-            </div>
+        <form @submit.prevent="addBySku()" class="shrink-0 self-end">
+            <label for="addBySkuGtin" class="sr-only">Adicionar por SKU (GTIN)</label>
+            <input id="addBySkuGtin" x-model="addBySkuGtin" type="text" inputmode="numeric" enterkeyhint="send"
+                autocomplete="off" placeholder="GTIN para adicionar por SKU" :disabled="addBySkuLoading" required
+                class="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:bg-slate-100 md:w-64" />
+            <p x-show="addBySkuError" x-text="addBySkuError" class="mt-1 text-sm text-red-600" role="alert"></p>
         </form>
     </div>
 </div>
@@ -176,28 +147,11 @@
             singleSupport: "",
             currentData: {},
             loading: false,
-            showAddBySkuModal: false,
             addBySkuGtin: "",
             addBySkuLoading: false,
             addBySkuError: "",
             operation: "",
             finishEventHandler: null,
-
-            openAddBySkuModal() {
-                this.addBySkuGtin = "";
-                this.addBySkuError = "";
-                this.showAddBySkuModal = true;
-                this.$nextTick(() => {
-                    this.$refs.addBySkuGtinInput?.focus();
-                    this.$refs.addBySkuGtinInput?.select();
-                });
-            },
-
-            closeAddBySkuModal() {
-                if (this.addBySkuLoading) return;
-                this.showAddBySkuModal = false;
-                this.addBySkuError = "";
-            },
 
             async addBySku() {
                 const gtin = this.addBySkuGtin.trim();
@@ -214,7 +168,6 @@
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || data.message || `HTTP ${response.status}`);
 
-                    this.showAddBySkuModal = false;
                     this.addBySkuGtin = "";
                     if (typeof window.showAlert === "function") {
                         window.showAlert(data.message || "Tag adicionada com sucesso", "success", 5000, "toast");
