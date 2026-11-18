@@ -1,0 +1,117 @@
+<div>
+    <button
+        class="inline-flex items-center px-4 py-2 rounded bg-blue-600 text-white font-medium shadow hover:bg-blue-700 transition text-sm mb-6"
+        type="button" onclick="window.dispatchEvent(new CustomEvent('open-create-dispatch'))">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
+        Create Dispatch
+    </button>
+</div>
+<script>
+    // Modal sem Alpine.js
+
+    class DispatchModal {
+        constructor() {
+            this.modal = document.getElementById('dispatch-modal-js');
+            this.backdrop = this.modal.querySelector('.dispatch-modal-backdrop');
+            this.form = this.modal.querySelector('form');
+            this.title = this.modal.querySelector('.dispatch-modal-title');
+            this.nameInput = this.modal.querySelector('[name="dispatchName"]');
+            this.exampleSelect = this.modal.querySelector('[name="example"]');
+            this.contentTextarea = this.modal.querySelector('[name="content"]');
+            this.messageSpan = this.modal.querySelector('.dispatch-modal-message');
+            this.isEdit = false;
+            this.examples = [];
+            this._bindEvents();
+        }
+
+        _bindEvents() {
+            this.modal.querySelector('.dispatch-modal-close').onclick = () => this.close();
+            this.form.onsubmit = (e) => {
+                e.preventDefault();
+                this.submitForm();
+            };
+            this.exampleSelect.onchange = () => this.loadExampleContent();
+            // Intentionally ignore backdrop clicks to avoid accidental modal close.
+            // Closing is done via the close button or the Escape key.
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.modal.classList.contains('open')) this.close();
+            });
+        }
+
+        async open(edit = false, name = '', content = '') {
+            this.isEdit = edit;
+            this.modal.classList.add('open');
+            this.modal.style.display = 'flex';
+            this.title.textContent = edit ? 'Edit Dispatch' : 'Create Dispatch';
+            this.nameInput.value = name;
+            this.nameInput.readOnly = edit;
+            this.contentTextarea.value = content ? JSON.stringify(content, null, 2) : '';
+            this.exampleSelect.value = '';
+            this.messageSpan.textContent = '';
+            await this.loadExamples();
+        }
+
+        close() {
+            this.modal.classList.remove('open');
+            this.modal.style.display = 'none';
+            this.isEdit = false;
+            this.nameInput.value = '';
+            this.contentTextarea.value = '';
+            this.exampleSelect.value = '';
+            this.messageSpan.textContent = '';
+        }
+
+        async loadExamples() {
+            const res = await fetch(DISPATCHES_EXAMPLES_URL);
+            if (res.ok) {
+                this.examples = await res.json();
+                this.exampleSelect.innerHTML = '<option value="">Select example...</option>' + this.examples.map(ex => `<option value="${ex}">${ex}</option>`).join('');
+            }
+        }
+
+        async loadExampleContent() {
+            if (!this.exampleSelect.value) return;
+            const res = await fetch(EXAMPLE_DISPATCH_URL.replace('__NAME__', this.exampleSelect.value));
+            if (res.ok) {
+                const data = await res.json();
+                this.contentTextarea.value = JSON.stringify(data, null, 2);
+            }
+        }
+
+        async submitForm() {
+            try {
+                const res = await fetch(ADD_DISPATCH_URL.replace('__NAME__', this.nameInput.value), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: this.contentTextarea.value
+                });
+                if (res.ok) {
+                    this.messageSpan.textContent = 'Saved!';
+                    window.dispatchEvent(new CustomEvent('dispatches-updated'));
+                    setTimeout(() => this.close(), 800);
+                } else {
+                    this.messageSpan.textContent = 'Error saving';
+                }
+            } catch {
+                this.messageSpan.textContent = 'Error saving';
+            }
+        }
+    }
+
+    // URLs do backend (renderizados pelo Jinja2 no template principal)
+    const DISPATCHES_EXAMPLES_URL = "{{ url_for('get_dispatches_examples') }}";
+    const EXAMPLE_DISPATCH_URL = "{{ url_for('get_example_dispatch', dispatch_name='__NAME__') }}";
+    const ADD_DISPATCH_URL = "{{ url_for('add_dispatch', dispatch_name='__NAME__') }}";
+
+    window.dispatchModal = new DispatchModal();
+
+    window.addEventListener('open-create-dispatch', () => {
+        window.dispatchModal.open(false);
+    });
+    window.addEventListener('edit-dispatch', e => {
+        const { name, content } = e.detail;
+        window.dispatchModal.open(true, name, content);
+    });
+</script>

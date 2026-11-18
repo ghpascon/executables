@@ -1,0 +1,83 @@
+{% extends "base.html" %} {% block content %}
+<div class="min-h-screen flex items-center justify-center p-6">
+  <div class="w-full max-w-md bg-white rounded-lg shadow border p-6">
+    <h1 class="text-xl font-bold mb-4">Autenticar</h1>
+
+    <form id="authForm" class="space-y-4">
+      <label class="block">
+        <span class="text-sm text-gray-700">Usuário</span>
+        <input id="username" name="username" type="text" placeholder="Digite o usuário" autofocus
+          class="mt-1 block w-full border rounded px-3 py-2" required />
+      </label>
+
+      <label class="block">
+        <span class="text-sm text-gray-700">Senha</span>
+        <input id="password" name="password" type="password" placeholder="Digite a senha"
+          class="mt-1 block w-full border rounded px-3 py-2" required />
+      </label>
+
+      <div class="flex items-center gap-2">
+        <button id="submitBtn" type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Entrar</button>
+      </div>
+
+      <div id="message" class="mt-3 hidden text-sm whitespace-pre-wrap font-mono"></div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('authForm');
+    if (!form) return;
+    const username = document.getElementById('username');
+    const password = document.getElementById('password');
+    const submitBtn = document.getElementById('submitBtn');
+    const message = document.getElementById('message');
+
+    const POST_URL = "{{ url_for('authenticate') }}";
+
+    function showMessage(text, type = 'error') {
+      message.classList.remove('hidden', 'text-red-600', 'text-green-600');
+      message.classList.add('block', type === 'error' ? 'text-red-600' : 'text-green-600');
+      message.textContent = text;
+    }
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      message.classList.add('hidden');
+      submitBtn.disabled = true;
+      submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+      const payload = {
+        username: username.value.trim(),
+        password: password.value.trim(),
+      };
+
+      try {
+        const response = await fetch(POST_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          redirect: 'manual'
+        });
+
+        let data = null;
+        try { data = await response.json(); } catch (err) { /* ignore */ }
+
+        if (response.ok) {
+          window.location.href = '/';
+          return;
+        } else {
+          const errMsg = (data && (data.error || data.message)) || `Erro: ${response.status}`;
+          showMessage(errMsg, 'error');
+        }
+      } catch (err) {
+        showMessage('Erro ao conectar com o servidor.', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    });
+  });
+</script>
+{% endblock %}
