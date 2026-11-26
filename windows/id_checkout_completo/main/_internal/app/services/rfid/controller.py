@@ -527,29 +527,84 @@ class Controller:
 		if not self.support_data:
 			return []
 		data = []
-		current_tags = self.tags.get_gtin_counts()
-		current_data = self.support_data.data.copy()
-		for row in current_data:
-			eans = {ean.strip() for ean in str(row.get('ean') or '').split(';') if ean.strip()}
-			row['encontrado'] = sum(current_tags.pop(ean, 0) for ean in eans)
-			current = row.get('quantidade')
-			found = row.get('encontrado')
+		current_tags = {}
+		for gtin, count in self.tags.get_gtin_counts().items():
+			key = str(gtin).strip().upper()
+			current_tags[key] = current_tags.get(key, 0) + count
+
+		rows = self.support_data.data
+		parents = list(range(len(rows)))
+
+		def find(index):
+			while parents[index] != index:
+				parents[index] = parents[parents[index]]
+				index = parents[index]
+			return index
+
+		def union(left, right):
+			left_root = find(left)
+			right_root = find(right)
+			if left_root != right_root:
+				parents[right_root] = left_root
+
+		row_eans = []
+		ean_owner = {}
+		for index, row in enumerate(rows):
+			eans = {
+				ean.strip().upper() for ean in str(row.get('ean') or '').split(';') if ean.strip()
+			}
+			row_eans.append(eans)
+			for ean in eans:
+				if ean in ean_owner:
+					union(index, ean_owner[ean])
+				else:
+					ean_owner[ean] = index
+
+		groups = {}
+		for index, row in enumerate(rows):
+			group = groups.setdefault(
+				find(index),
+				{
+					'row': row,
+					'eans': set(),
+					'pedidos': [],
+					'skus': [],
+					'descricoes': [],
+					'esperado': 0,
+				},
+			)
+			group['eans'].update(row_eans[index])
+			for field, values in (
+				('pedido', group['pedidos']),
+				('sku', group['skus']),
+				('descricao', group['descricoes']),
+			):
+				value = row.get(field)
+				if value is not None and str(value).strip() and str(value) not in values:
+					values.append(str(value))
+			group['esperado'] += row.get('quantidade') or 0
+
+		for group in groups.values():
+			row = group['row']
+			eans = group['eans']
+			found = sum(current_tags.pop(ean, 0) for ean in eans)
+			current = group['esperado']
 			if found < current:
-				row['status'] = '<'
+				status = '<'
 			elif found > current:
-				row['status'] = '>'
+				status = '>'
 			else:
-				row['status'] = '='
+				status = '='
 			data.append(
 				{
-					'pedido': row.get('pedido', ''),
+					'pedido': ', '.join(group['pedidos']),
 					'suporte': row.get('suporte', ''),
-					'sku': row.get('sku', ''),
-					'descricao': row.get('descricao', ''),
-					# "ean": row.get('ean', ''),
-					'esperado': row.get('quantidade', 0),
-					'encontrado': row.get('encontrado', 0),
-					'status': row.get('status', ''),
+					'sku': ', '.join(group['skus']),
+					'descricao': ' / '.join(group['descricoes']),
+					'ean': '; '.join(sorted(eans)),
+					'esperado': current,
+					'encontrado': found,
+					'status': status,
 				}
 			)
 
@@ -559,7 +614,7 @@ class Controller:
 				'suporte': '',
 				'sku': gtin,
 				'descricao': 'Divergente',
-				# "ean": gtin,
+				'ean': gtin,
 				'esperado': 0,
 				'encontrado': count,
 				'status': '!',

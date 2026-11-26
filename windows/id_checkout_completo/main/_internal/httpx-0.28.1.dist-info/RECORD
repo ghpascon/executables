@@ -1,10 +1,10 @@
-httpx-0.28.1.dist-info/INSTALLER,sha256=lzGya_sjpbpLpqm8jXm-FabfCJPMoV8B71bcwiSWmgM,12
+httpx-0.28.1.dist-info/INSTALLER,sha256=hhWRYTe0vv7dIZwbURZi2J6aiZsKo2eb9ps0l8yv8Bc,12
 httpx-0.28.1.dist-info/METADATA,sha256=_rubD48-gNV8gZnDBPNcQzboWB0dGNeYPJJ2a4J5OyU,7052
 httpx-0.28.1.dist-info/RECORD,,
 httpx-0.28.1.dist-info/WHEEL,sha256=C2FUgwZgiLbznR-k0b_5k3Ai_1aASOXDss3lzCUsUug,87
 httpx-0.28.1.dist-info/entry_points.txt,sha256=2lVkdQmxLA1pNMgSN2eV89o90HCZezhmNwsy6ryKDSA,37
 httpx-0.28.1.dist-info/licenses/LICENSE.md,sha256=TsWdVE8StfU5o6cW_TIaxYzNgDC0ZSIfLIgCAM3yjY0,1508
-C:/Users/runneradmin/AppData/Local/pypoetry/Cache/virtualenvs/x-bridge-guIP71he-py3.11/Scripts/httpx.exe,sha256=ehe75jSWM43TzR-yCZOZEqOaYWNpnsUJt9OfPVdAkoM,108445
+C:/Users/runneradmin/AppData/Local/pypoetry/Cache/virtualenvs/x-bridge-guIP71he-py3.11/Scripts/httpx.exe,sha256=y-m5raBqaCXsW3fvm4I0ArGQIEzJJsHtmOnwVEAyt1I,108445
 httpx/__init__.py,sha256=CsaZe6yZj0rHg6322AWKWHGTMVr9txgEfD5P3_Rrz60,2171
 httpx/__version__.py,sha256=LoUyYeOXTieGzuP_64UL0wxdtxjuu_QbOvE7NOg-IqU,108
 httpx/_api.py,sha256=r_Zgs4jIpcPJLqK5dbbSayqo_iVMKFaxZCd-oOHxLEs,11743

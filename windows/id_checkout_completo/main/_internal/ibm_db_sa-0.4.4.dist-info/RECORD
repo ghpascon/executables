@@ -1,0 +1,16 @@
+ibm_db_sa-0.4.4.dist-info/INSTALLER,sha256=hhWRYTe0vv7dIZwbURZi2J6aiZsKo2eb9ps0l8yv8Bc,12
+ibm_db_sa-0.4.4.dist-info/METADATA,sha256=TbpfR0piUY_X-pCEQP71r7OpVq_U1L13r-m6mYYJOQ4,8391
+ibm_db_sa-0.4.4.dist-info/RECORD,,
+ibm_db_sa-0.4.4.dist-info/WHEEL,sha256=aeYiig01lYGDzBgS8HxWXOg3uV61G9ijOsup-k9o1sk,91
+ibm_db_sa-0.4.4.dist-info/entry_points.txt,sha256=7E4rSO0oITe4A_1kA-05XofatuOvj4-oD7MwpkqY1wk,633
+ibm_db_sa-0.4.4.dist-info/licenses/LICENSE,sha256=-1MUh_ZmkJ1IcjnaYTDiJW2MhvJuwmdM5qpXY7x_jFY,9164
+ibm_db_sa-0.4.4.dist-info/top_level.txt,sha256=dVIltmZg9qGgKfZksGzfC7xxczq5tx4gOK1wytP8Ja8,10
+ibm_db_sa/__init__.py,sha256=hZtMew9_VYj2fcfZmypuos17kV2CTWhyLNvjpxhyrFY,1819
+ibm_db_sa/base.py,sha256=mjLpGAQVn_QaCvJK8t01lzfHkN4L1LyRGK6Ap19zfnw,63353
+ibm_db_sa/ibm_db.py,sha256=kjgz4TU5rLnEBPdKCYK8AB4Y64IiWff1-e9rvN-jDIc,14725
+ibm_db_sa/ibm_db_as400.py,sha256=phVSgRMHKi03GLnwvbhfOayWRz0vjdXO2O4ya_H6HJU,635
+ibm_db_sa/logger.py,sha256=4usxl9s_yzNXpvWX45IP7LclQ29WluZi9UNtUZvCWl4,4213
+ibm_db_sa/pyodbc.py,sha256=lwzAYlcV-8dCSAGabyriiqpMsTD4DSj9LDKE2SQB0uA,8478
+ibm_db_sa/reflection.py,sha256=HsVztmJ17akBH8ddG4J2SFX7A43nk2YiSwcVG33iIpE,89678
+ibm_db_sa/requirements.py,sha256=6DCZcuWybnv7OeF0B8KMOyMfLlGqRIzJ1IZa9eKUOo0,2295
+ibm_db_sa/zxjdbc.py,sha256=GjAj6FXl7BgAYdg4c5bGcHoaXIjlzPHyuN97P9NMWJE,4114

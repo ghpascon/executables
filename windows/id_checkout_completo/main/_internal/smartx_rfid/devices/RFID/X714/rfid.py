@@ -1,0 +1,99 @@
+import logging
+import asyncio
+
+
+class RfidCommands:
+    """RFID reader control commands for X714."""
+
+    async def start_inventory(self):
+        """Start reading RFID tags."""
+        if self.is_gpi_trigger_on:
+            return
+        self.write("#READ:ON")
+        self.on_start()
+
+    async def stop_inventory(self):
+        """Stop reading RFID tags."""
+        if self.is_gpi_trigger_on:
+            return
+        self.write("#READ:OFF")
+        self.on_stop()
+
+    def clear_tags(self):
+        """Clear all stored tags from memory."""
+        self.write("#CLEAR")
+
+    def config_reader(self):
+        """Configure reader settings like antennas, session, etc."""
+        logging.info(f"{self.name} - Configuring reader settings...")
+        asyncio.create_task(self.get_reader_info())
+
+        cmds = []
+        # PROTECTED INVENTORY
+        self.protected_inventory(self.protected_inventory_active)
+
+        # ANTENNAS
+        for antenna, ant in self.ant_dict.items():
+            ant_cmd = (
+                f"#set_ant:{antenna},{'on' if ant.get('active') else 'off'},{ant.get('power')},{abs(ant.get('rssi'))}"
+            )
+            cmds.append(ant_cmd)
+
+        # SESSION
+        cmds.append(f"#session:{self.session}")
+
+        # START_READING
+        cmds.append(f"#start_reading:{'on' if self.start_reading else 'off'}")
+        if self.start_reading:
+            self.on_start()
+
+        # GPI_START
+        cmds.append(f"#gpi_start:{'on' if self.gpi_start else 'off'}")
+
+        # ALWAYS_SEND
+        cmds.append(f"#always_send:{'on' if self.always_send else 'off'}")
+
+        # SIMPLE_SEND
+        cmds.append(f"#simple_send:{'on' if self.simple_send else 'off'}")
+
+        # KEYBOARD
+        cmds.append(f"#keyboard:{'on' if self.keyboard else 'off'}")
+
+        # BUZZER
+        cmds.append(f"#buzzer:{'on' if self.buzzer else 'off'}")
+
+        # DECODE_GTIN
+        cmds.append(f"#decode_gtin:{'on' if self.decode_gtin else 'off'}")
+
+        # HOTSPOT
+        cmds.append(f"#hotspot:{'on' if self.hotspot else 'off'}")
+
+        # PREFIX
+        cmds.append(f"#prefix:{self.prefix}")
+
+        # TURN OFF BUZZERS
+        for gpo in range(self.gpo_qtd):
+            cmds.append(f"#gpo:{gpo},off")
+
+        # setup
+        cmds.append("#setup_reader")
+
+        for cmd in cmds:
+            self.write(cmd)
+
+    def protected_inventory(self, active: bool, password: str = None):
+        if active:
+            pwd = password if password is not None else self.protected_inventory_password
+            self.write(f"#protected_inventory:on;{pwd}")
+        else:
+            self.write("#protected_inventory:off")
+
+    def protected_mode(self, epc: str, password: str = None, active: bool = True):
+        pwd = password if password is not None else self.protected_inventory_password
+        self.write(f"#protected_mode:{epc};{pwd};{'on' if active else 'off'}")
+
+    async def get_reader_info(self):
+        """Request reader information like firmware version, serial number, etc."""
+        while self.is_connected and self.serial_number is None:
+            self.write("#get_info")
+            await asyncio.sleep(1)

@@ -1,0 +1,361 @@
+<!-- Modal Component -->
+<div x-data="createDeviceModal()">
+  <div x-cloak x-show="showCreateDevice" x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+    x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100"
+    x-transition:leave-end="opacity-0 scale-95"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" @keydown.escape.window="close()"
+    @click.self="close()">
+    <div
+      class="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-3xl max-h-[90vh] overflow-auto p-8 relative animate-fadein"
+      @click.stop>
+      <!-- Close Button -->
+      <button @click="close()" class="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors"
+        title="Close" type="button" aria-label="Close">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      <!-- Title -->
+      <h2 class="text-2xl font-bold mb-6 text-gray-800 text-center tracking-tight">
+        <span x-text="isEdit ? 'Edit Device' : 'Create Device'"></span>
+      </h2>
+
+      <!-- Form -->
+      <form @submit.prevent="submitForm">
+        <!-- Device Name -->
+        <div class="mb-5">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Device Name</label>
+          <input type="text" x-model="deviceName" required :readonly="isEdit"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition"
+            placeholder="Enter device name" autocomplete="off" />
+        </div>
+
+        <!-- Device Type (only show when not editing) -->
+        <template x-if="!isEdit">
+          <div class="mb-5">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Device Type</label>
+            <select x-model="deviceType" @change="fetchConfigExample()" required
+              :disabled="submitting || loadingDeviceTypes"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition disabled:opacity-60 disabled:cursor-not-allowed">
+              <option value="" disabled>Select type…</option>
+              <template x-for="type in deviceTypes" :key="type">
+                <option :value="type" x-text="type"></option>
+              </template>
+            </select>
+            <div x-show="loadingDeviceTypes" class="text-xs text-gray-500 mt-1">Loading types...</div>
+          </div>
+        </template>
+
+        <!-- JSON Config -->
+        <template x-if="formConfigJson">
+          <div class="mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Configuration (JSON)</label>
+            <textarea x-model="formConfigJson" rows="8"
+              class="w-full border border-gray-300 rounded px-2 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 bg-white"></textarea>
+            <div class="text-xs text-gray-500 mt-2">
+              Edit the JSON configuration. If you include a <span class="font-mono">READER</span>
+              field it will be preserved. Otherwise the selected device example will be used.
+            </div>
+          </div>
+        </template>
+
+        <!-- Buttons -->
+        <div class="flex justify-end gap-2 mt-8">
+          <button type="button" @click="close()" :disabled="submitting"
+            class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 font-medium transition disabled:opacity-60 disabled:cursor-not-allowed">
+            Cancel
+          </button>
+          <button type="submit" :disabled="submitting"
+            class="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 font-semibold shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed">
+            <span x-show="!submitting" x-text="isEdit ? 'Update' : 'Create'"></span>
+            <span x-show="submitting">Saving...</span>
+          </button>
+        </div>
+
+        <!-- Error Message -->
+        <template x-if="error">
+          <div class="mt-4 text-red-600 text-sm text-center font-medium" x-text="error"></div>
+        </template>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+  document.addEventListener("alpine:init", () => {
+    Alpine.data("createDeviceModal", () => ({
+      showCreateDevice: false,
+      deviceName: "",
+      deviceType: "",
+      deviceTypes: [],
+      formConfigJson: "",
+      error: "",
+      submitting: false,
+      isEdit: false,
+      loadingDeviceTypes: false,
+
+      init() {
+        window.addEventListener("open-create-device", () => this.openCreate());
+        window.addEventListener("edit-device", (e) =>
+          this.openEdit(e.detail.name, e.detail.config),
+        );
+      },
+
+      close() {
+        if (this.submitting) return;
+        this.showCreateDevice = false;
+      },
+
+      async openCreate() {
+        this.reset();
+        this.isEdit = false;
+        this.showCreateDevice = true;
+        await this.fetchDeviceTypes();
+      },
+
+      async openEdit(name, config) {
+        this.reset();
+        this.isEdit = true;
+        this.deviceName = name;
+        // Support both 'READER' and 'reader' keys coming from saved configs
+        this.deviceType = (config && (config.reader || config.READER)) || "";
+
+        // Ensure the JSON editor shows the current reader value for clarity
+        const cfg = Object.assign({}, config || {});
+        if (this.deviceType) {
+          cfg.READER = this.deviceType;
+          // Remove lowercase `reader` to avoid duplicating the key in the editor
+          if ("reader" in cfg) delete cfg.reader;
+        }
+
+        this.formConfigJson = JSON.stringify(cfg, null, 2);
+        this.showCreateDevice = true;
+        await this.fetchDeviceTypes();
+      },
+
+      reset() {
+        this.deviceName = "";
+        this.deviceType = "";
+        this.formConfigJson = "";
+        this.error = "";
+        this.submitting = false;
+        this.loadingDeviceTypes = false;
+      },
+
+      async fetchWithDebug(url, options = {}, context = "request", timeoutMs = 20000) {
+        const controller = new AbortController();
+        const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+        const method = options.method || "GET";
+        const startedAt = Date.now();
+
+        console.info(`[devices_settings] ${context} ->`, { method, url, options });
+
+        try {
+          const res = await fetch(url, { ...options, signal: controller.signal });
+          const elapsedMs = Date.now() - startedAt;
+
+          let rawResponse = "";
+          try {
+            rawResponse = await res.clone().text();
+          } catch {
+            rawResponse = "";
+          }
+
+          console.info(`[devices_settings] ${context} <-`, {
+            status: res.status,
+            ok: res.ok,
+            elapsedMs,
+            body: rawResponse,
+          });
+
+          return { res, rawResponse };
+        } catch (err) {
+          const elapsedMs = Date.now() - startedAt;
+          if (err?.name === "AbortError") {
+            const timeoutError = new Error(`Request timeout after ${timeoutMs}ms`);
+            console.error(`[devices_settings] ${context} x timeout`, { elapsedMs, timeoutMs });
+            throw timeoutError;
+          }
+          console.error(`[devices_settings] ${context} x error`, { elapsedMs, error: err });
+          throw err;
+        } finally {
+          clearTimeout(timeoutHandle);
+        }
+      },
+
+      async fetchDeviceTypes() {
+        this.loadingDeviceTypes = true;
+        try {
+          const url = new URL('{{ url_for("get_device_types_list") }}', window.location.origin);
+          url.searchParams.set("_ts", Date.now().toString());
+          const { res } = await this.fetchWithDebug(
+            url.toString(),
+            { cache: "no-store" },
+            "get_device_types_list",
+            15000,
+          );
+          if (!res.ok) {
+            this.error = "Failed to load device types";
+            this.deviceTypes = [];
+            return;
+          }
+
+          const data = await res.json().catch(() => []);
+          this.deviceTypes = Array.isArray(data) ? data : [];
+          if (this.deviceTypes.length === 0) {
+            this.error = "No supported device types available";
+          }
+        } catch (err) {
+          this.error = "Error loading device types: " + err;
+          this.deviceTypes = [];
+        } finally {
+          this.loadingDeviceTypes = false;
+        }
+      },
+
+      async fetchConfigExample() {
+        if (!this.deviceType) return;
+        this.error = "";
+        try {
+          const url = new URL(
+            '{{ url_for("get_device_config_example", device_name="__X__") }}'.replace(
+              "__X__",
+              encodeURIComponent(this.deviceType),
+            ),
+            window.location.origin,
+          );
+          url.searchParams.set("_ts", Date.now().toString());
+
+          const { res } = await this.fetchWithDebug(
+            url.toString(),
+            { cache: "no-store" },
+            `get_device_config_example(${this.deviceType})`,
+            15000,
+          );
+          if (!res.ok) {
+            this.error = "Failed to load example configuration";
+            return;
+          }
+
+          const config = await res.json();
+          this.formConfigJson = JSON.stringify(config, null, 2);
+        } catch (err) {
+          this.error = "Error loading example configuration: " + err;
+        }
+      },
+
+      async submitForm() {
+        try {
+          this.submitting = true;
+          this.error = "";
+
+          const name = (this.deviceName || "").trim();
+          if (!name) {
+            this.error = "Device name is required";
+            return;
+          }
+
+          if (!this.isEdit && !this.deviceType) {
+            this.error = "Device type is required";
+            return;
+          }
+
+          const rawConfig = (this.formConfigJson || "").trim();
+          if (!rawConfig) {
+            this.error = "Configuration JSON is required";
+            return;
+          }
+
+          let payload;
+          try {
+            payload = JSON.parse(rawConfig);
+          } catch (err) {
+            this.error = "Invalid JSON configuration";
+            return;
+          }
+
+          if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+            this.error = "Configuration must be a JSON object";
+            return;
+          }
+
+          // Preserve user-provided READER (case-insensitive) if present in payload
+          const existingReader = payload.READER ?? payload.reader;
+          if (existingReader) {
+            payload.READER = existingReader;
+            // Remove lowercase `reader` to avoid sending duplicated keys
+            if ("reader" in payload) delete payload.reader;
+          } else if (this.deviceType) {
+            // No READER provided in JSON — fall back to the selected example identifier
+            payload.READER = this.deviceType;
+            if ("reader" in payload) delete payload.reader;
+          }
+
+          const urlTemplate = this.isEdit
+            ? '{{ url_for("update_device", device_name="__X__") }}'
+            : '{{ url_for("create_device", device_name="__X__") }}';
+
+          const encodedName = encodeURIComponent(name);
+          const url = urlTemplate.replace("__X__", encodedName);
+          const method = this.isEdit ? "PUT" : "POST";
+
+          const context = this.isEdit
+            ? `update_device(${name})`
+            : `create_device(${name})`;
+
+          const { res, rawResponse } = await this.fetchWithDebug(
+            url,
+            {
+              method,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            },
+            context,
+            20000,
+          );
+
+          let data = {};
+          if (rawResponse) {
+            try {
+              data = JSON.parse(rawResponse);
+            } catch {
+              data = {};
+            }
+          }
+
+          if (!res.ok) {
+            const msg = data?.message || data?.error || data?.status || "Request failed";
+            throw new Error(msg);
+          }
+
+          // Notify other components (devices list) and show toast
+          window.dispatchEvent(
+            new CustomEvent(this.isEdit ? "device-updated" : "device-created", {
+              detail: { name },
+            }),
+          );
+
+          window.dispatchEvent(
+            new CustomEvent("show-toast", {
+              detail: { message: this.isEdit ? "Device updated" : "Device created", type: "success" },
+            }),
+          );
+
+          this.showCreateDevice = false;
+          this.reset();
+        } catch (e) {
+          const message = e?.message || String(e);
+          this.error = message;
+          window.dispatchEvent(
+            new CustomEvent("show-toast", {
+              detail: { message, type: "error" },
+            }),
+          );
+        } finally {
+          this.submitting = false;
+        }
+      },
+    }));
+  });
+</script>

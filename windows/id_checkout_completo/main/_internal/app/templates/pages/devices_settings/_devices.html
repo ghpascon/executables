@@ -1,0 +1,337 @@
+<div x-data="devicesList()" x-init="init()" x-on:beforeunload.window="destroy()">
+  <div x-show="loading" class="py-3 text-center text-gray-500">
+    Loading devices…
+  </div>
+
+  <div x-show="!loading" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+    <template x-for="device in devices" :key="device.name">
+      {% include 'pages/devices_settings/_device_row.html' %}
+    </template>
+  </div>
+
+  <div x-show="!loading && devices.length === 0" class="py-6 text-center text-gray-400">
+    No devices found.
+  </div>
+  <!-- Toast -->
+  <div class="fixed top-4 right-4 z-50" x-show="toast.visible" x-transition.opacity>
+    <div :class="toast.type === 'success' ? 'bg-green-600' : (toast.type === 'error' ? 'bg-red-600' : 'bg-gray-800')"
+      class="text-white px-4 py-2 rounded shadow">
+      <span x-text="toast.message"></span>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div x-cloak x-show="confirmDelete.open" x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+    @keydown.escape.window="closeDeleteConfirm()" @click.self="closeDeleteConfirm()">
+    <div class="bg-white rounded-xl shadow-xl border border-gray-200 p-6 w-full max-w-md" @click.stop>
+      <h3 class="text-lg font-semibold text-gray-800">Delete device</h3>
+      <p class="mt-2 text-sm text-gray-600">
+        Do you really want to delete
+        <span class="font-semibold" x-text="confirmDelete.name"></span>?
+      </p>
+      <p class="mt-1 text-xs text-gray-500">This action cannot be undone.</p>
+
+      <div class="mt-5 flex justify-end gap-2">
+        <button type="button" @click="closeDeleteConfirm()" :disabled="deleting"
+          class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 font-medium transition disabled:opacity-60 disabled:cursor-not-allowed">
+          Cancel
+        </button>
+        <button type="button" @click="confirmDeleteDevice()" :disabled="deleting"
+          class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed">
+          <span x-show="!deleting">Delete</span>
+          <span x-show="deleting">Deleting...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function devicesList() {
+    return {
+      devices: [],
+      loading: false,
+      toast: { visible: false, message: "", type: "" },
+      _fetching: false,
+      _pendingRefresh: false,
+      pollHandle: null,
+      toastTimeout: null,
+      deleting: false,
+      confirmDelete: { open: false, name: "" },
+      onDeviceChanged: null,
+      onShowToast: null,
+      onVisibilityChange: null,
+
+      async init() {
+        await this.loadDevices(true);
+
+        // Listen for CRUD events from modal/list actions.
+        this.onDeviceChanged = () => {
+          this.loadDevices(true);
+        };
+        this.onShowToast = (e) => {
+          this.showToast(e.detail?.message || "", e.detail?.type || "info");
+        };
+        this.onVisibilityChange = () => {
+          if (document.hidden) {
+            this.stopPolling();
+            return;
+          }
+          this.loadDevices(false);
+          this.startPolling();
+        };
+
+        window.addEventListener("device-created", this.onDeviceChanged);
+        window.addEventListener("device-updated", this.onDeviceChanged);
+        window.addEventListener("device-deleted", this.onDeviceChanged);
+        window.addEventListener("show-toast", this.onShowToast);
+        document.addEventListener("visibilitychange", this.onVisibilityChange);
+
+        this.startPolling();
+      },
+
+      destroy() {
+        this.stopPolling();
+        if (this.toastTimeout) clearTimeout(this.toastTimeout);
+
+        if (this.onDeviceChanged) {
+          window.removeEventListener("device-created", this.onDeviceChanged);
+          window.removeEventListener("device-updated", this.onDeviceChanged);
+          window.removeEventListener("device-deleted", this.onDeviceChanged);
+        }
+        if (this.onShowToast) {
+          window.removeEventListener("show-toast", this.onShowToast);
+        }
+        if (this.onVisibilityChange) {
+          document.removeEventListener("visibilitychange", this.onVisibilityChange);
+        }
+      },
+
+      startPolling() {
+        if (this.pollHandle || document.hidden) return;
+        this.pollHandle = setInterval(() => {
+          if (!this._fetching && !this.confirmDelete.open && !this.deleting) {
+            this.loadDevices(false);
+          }
+        }, 3000);
+      },
+
+      stopPolling() {
+        if (!this.pollHandle) return;
+        clearInterval(this.pollHandle);
+        this.pollHandle = null;
+      },
+
+      showToast(message, type = "info") {
+        this.toast.message = message;
+        this.toast.type = type;
+        this.toast.visible = true;
+        if (this.toastTimeout) clearTimeout(this.toastTimeout);
+        this.toastTimeout = setTimeout(() => {
+          this.toast.visible = false;
+        }, 3500);
+      },
+
+      async fetchWithDebug(url, options = {}, context = "request", timeoutMs = 20000) {
+        const controller = new AbortController();
+        const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+        const method = options.method || "GET";
+        const startedAt = Date.now();
+
+        console.info(`[devices_settings] ${context} ->`, { method, url, options });
+
+        try {
+          const res = await fetch(url, { ...options, signal: controller.signal });
+          const elapsedMs = Date.now() - startedAt;
+
+          let rawResponse = "";
+          try {
+            rawResponse = await res.clone().text();
+          } catch {
+            rawResponse = "";
+          }
+
+          console.info(`[devices_settings] ${context} <-`, {
+            status: res.status,
+            ok: res.ok,
+            elapsedMs,
+            body: rawResponse,
+          });
+
+          return { res, rawResponse };
+        } catch (err) {
+          const elapsedMs = Date.now() - startedAt;
+          if (err?.name === "AbortError") {
+            const timeoutError = new Error(`Request timeout after ${timeoutMs}ms`);
+            console.error(`[devices_settings] ${context} x timeout`, { elapsedMs, timeoutMs });
+            throw timeoutError;
+          }
+
+          console.error(`[devices_settings] ${context} x error`, { elapsedMs, error: err });
+          throw err;
+        } finally {
+          clearTimeout(timeoutHandle);
+        }
+      },
+
+      async editDevice(deviceName) {
+        try {
+          const url = new URL(
+            '{{ url_for("get_device_config", device_name="__DEVICENAME__") }}'.replace(
+              "__DEVICENAME__",
+              encodeURIComponent(deviceName),
+            ),
+            window.location.origin,
+          );
+          url.searchParams.set("_ts", Date.now().toString());
+
+          const { res, rawResponse } = await this.fetchWithDebug(
+            url.toString(),
+            { cache: "no-store" },
+            `get_device_config(${deviceName})`,
+            15000,
+          );
+
+          if (!res.ok) {
+            let data = {};
+            try {
+              data = rawResponse ? JSON.parse(rawResponse) : {};
+            } catch {
+              data = {};
+            }
+            window.dispatchEvent(
+              new CustomEvent("show-toast", {
+                detail: { message: data.message || "Failed to load device config", type: "error" },
+              }),
+            );
+            return;
+          }
+
+          let config = {};
+          try {
+            config = rawResponse ? JSON.parse(rawResponse) : {};
+          } catch {
+            config = {};
+          }
+
+          // Dispatch a global event that the create/update modal listens to
+          window.dispatchEvent(
+            new CustomEvent("edit-device", {
+              detail: { name: deviceName, config },
+            }),
+          );
+        } catch (err) {
+          window.dispatchEvent(
+            new CustomEvent("show-toast", {
+              detail: { message: "Error loading device config: " + err, type: "error" },
+            }),
+          );
+        }
+      },
+
+      async loadDevices(force = false) {
+        if (this._fetching) {
+          if (force) this._pendingRefresh = true;
+          return;
+        }
+        this._fetching = true;
+        if (force || this.devices.length === 0) this.loading = true;
+        try {
+          const url = new URL('{{ url_for("get_devices_info") }}', window.location.origin);
+          url.searchParams.set("_ts", Date.now().toString());
+          const res = await fetch(url.toString(), { cache: "no-store" });
+
+          if (res.ok) {
+            const data = await res.json();
+            this.devices = Array.isArray(data) ? data : [];
+          } else {
+            console.error("Failed to load devices, status:", res.status);
+            if (force) this.devices = [];
+          }
+        } catch (err) {
+          console.error("Error loading devices:", err);
+          if (force) this.devices = [];
+        } finally {
+          this.loading = false;
+          this._fetching = false;
+          if (this._pendingRefresh) {
+            this._pendingRefresh = false;
+            this.loadDevices(true);
+          }
+        }
+      },
+
+      async deleteDevice(deviceName) {
+        this.openDeleteConfirm(deviceName);
+      },
+
+      openDeleteConfirm(deviceName) {
+        this.confirmDelete.name = deviceName;
+        this.confirmDelete.open = true;
+      },
+
+      closeDeleteConfirm() {
+        if (this.deleting) return;
+        this.confirmDelete.open = false;
+        this.confirmDelete.name = "";
+      },
+
+      async confirmDeleteDevice() {
+        if (!this.confirmDelete.name || this.deleting) return;
+
+        const deviceName = this.confirmDelete.name;
+        let deleted = false;
+        this.deleting = true;
+        try {
+          const url = `{{ url_for('delete_device', device_name='__DEVICENAME__') }}`.replace(
+            "__DEVICENAME__",
+            encodeURIComponent(deviceName),
+          );
+
+          const { res, rawResponse } = await this.fetchWithDebug(
+            url,
+            { method: "DELETE" },
+            `delete_device(${deviceName})`,
+            20000,
+          );
+
+          if (res.ok) {
+            deleted = true;
+            await this.loadDevices(true);
+            window.dispatchEvent(
+              new CustomEvent("show-toast", { detail: { message: "Device deleted", type: "success" } }),
+            );
+            window.dispatchEvent(new CustomEvent("device-deleted", { detail: { name: deviceName } }));
+          } else {
+            let data = {};
+            try {
+              data = rawResponse ? JSON.parse(rawResponse) : {};
+            } catch {
+              data = {};
+            }
+            window.dispatchEvent(
+              new CustomEvent("show-toast", {
+                detail: { message: data.message || "Failed to delete device", type: "error" },
+              }),
+            );
+          }
+        } catch (err) {
+          window.dispatchEvent(
+            new CustomEvent("show-toast", {
+              detail: { message: "Error deleting device: " + err, type: "error" },
+            }),
+          );
+        } finally {
+          this.deleting = false;
+          if (deleted) {
+            this.closeDeleteConfirm();
+          }
+        }
+      },
+    };
+  }
+</script>

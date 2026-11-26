@@ -9,7 +9,7 @@
       {% endwith %}
       {% endif %}
       <h4 class="text-lg font-semibold ml-2">
-        Total hoje (<span x-text="tags.length"></span>)
+        Comparação agrupada por EAN (<span x-text="tags.length"></span>)
       </h4>
     </div>
 
@@ -38,7 +38,7 @@
             <template x-for="header in headers" :key="header">
               <th
                 class="px-2 py-2 text-left whitespace-nowrap border-b-2 border-gray-200 font-mono text-xs font-semibold text-gray-900"
-                x-text="header.replace(/_/g, ' ').toUpperCase()"></th>
+                x-text="headerLabel(header)"></th>
             </template>
           </tr>
         </thead>
@@ -46,8 +46,8 @@
           <template x-for="(tag, index) in tags" :key="`tag-${index}`">
             <tr :class="row_class(tag) + ' border-b border-gray-200'">
               <template x-for="(header, headerIndex) in headers" :key="`cell-${index}-${headerIndex}`">
-                <td class="px-2 py-2 font-mono text-xs sm:text-sm whitespace-nowrap text-gray-900" :title="tag[header]"
-                  x-text="formatValue(tag[header], header)"></td>
+                <td class="px-2 py-2 font-mono text-xs sm:text-sm whitespace-pre-line text-gray-900"
+                  :title="tag[header]" x-text="formatValue(tag[header], header)"></td>
               </template>
             </tr>
           </template>
@@ -63,7 +63,12 @@
 
 <script>
   const WANTED_FIELDS = [
-
+    "pedido",
+    "sku",
+    "descricao",
+    "esperado",
+    "encontrado",
+    "status",
   ]
 
 
@@ -89,6 +94,19 @@
 
       getTagsUrl() {
         return "{{ url_for('compare_tags') }}";
+      },
+
+      headerLabel(header) {
+        const labels = {
+          ean: "EAN",
+          pedido: "PEDIDOS",
+          sku: "SKU",
+          descricao: "DESCRIÇÃO",
+          esperado: "QTD. ESPERADA",
+          encontrado: "QTD. ENCONTRADA",
+          status: "STATUS",
+        };
+        return labels[header] || header.replace(/_/g, " ").toUpperCase();
       },
 
       async onLimitChange() {
@@ -139,6 +157,14 @@
       formatValue(value, header) {
         if (value === null || value === undefined) {
           return "-";
+        }
+
+        if (["pedido", "sku"].includes(header)) {
+          return String(value).split(", ").join("\n");
+        }
+
+        if (header === "descricao") {
+          return String(value).split(" / ").join("\n");
         }
 
         // Format timestamp to show only HMS

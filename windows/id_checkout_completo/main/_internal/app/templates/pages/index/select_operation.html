@@ -1,0 +1,45 @@
+{% extends "base.html" %} {% block content %}
+<div class="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-8">
+  <section class="w-full max-w-3xl rounded-xl border bg-white p-8 text-center shadow-lg sm:p-10"
+    data-home-url="{{ url_for('index') }}">
+    <h1 class="mb-2 text-2xl font-bold text-gray-900">Selecionar operação</h1>
+    <p class="mb-6 text-gray-600">Escolha o tipo de operação que deseja iniciar.</p>
+
+    <div class="grid gap-5 sm:grid-cols-2">
+      <button type="button" data-operation="ptl" data-url="{{ url_for('set_operation', operation='ptl') }}"
+        class="min-h-40 rounded-xl bg-blue-600 px-8 py-10 text-3xl font-bold text-white shadow-md transition hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-52">
+        PTL
+      </button>
+      <button type="button" data-operation="single" data-url="{{ url_for('set_operation', operation='single') }}"
+        class="min-h-40 rounded-xl bg-indigo-600 px-8 py-10 text-3xl font-bold text-white shadow-md transition hover:bg-indigo-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-52">
+        Single
+      </button>
+    </div>
+    <p id="operationMessage" class="mt-4 hidden text-sm text-red-600" role="alert"></p>
+  </section>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const section = document.querySelector('[data-home-url]');
+    const buttons = section.querySelectorAll('button[data-operation]');
+    const message = document.getElementById('operationMessage');
+
+    buttons.forEach(function (button) {
+      button.addEventListener('click', async function () {
+        buttons.forEach((item) => { item.disabled = true; });
+        message.classList.add('hidden');
+        try {
+          const response = await fetch(button.dataset.url, { method: 'POST' });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || data.message || 'Falha ao definir a operação.');
+          window.location.href = section.dataset.homeUrl;
+        } catch (error) {
+          message.textContent = error.message || 'Erro ao definir a operação.';
+          message.classList.remove('hidden');
+          buttons.forEach((item) => { item.disabled = false; });
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+<!-- Dispatch Modal Component (JS puro) -->
+<div id="dispatch-modal-js" style="display: none;">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 dispatch-modal-backdrop">
+        <div
+            class="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-3xl max-h-[90vh] overflow-auto p-8 relative animate-fadein">
+            <!-- Close Button -->
+            <button type="button" aria-label="Close" title="Close"
+                class="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors dispatch-modal-close">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <!-- Title -->
+            <h2 class="text-2xl font-bold mb-6 text-gray-800 text-center tracking-tight dispatch-modal-title">Create
+                Dispatch</h2>
+            <!-- Form -->
+            <form>
+                <!-- Dispatch Name -->
+                <div class="mb-5">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Dispatch Name</label>
+                    <input type="text" name="dispatchName" required
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition" />
+                </div>
+                <!-- Example Selection -->
+                <div class="mb-5">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Example</label>
+                    <select name="example" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        <option value="">Select example...</option>
+                    </select>
+                </div>
+                <!-- Content -->
+                <div class="mb-5">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Content (JSON)</label>
+                    <textarea name="content"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 font-mono min-h-[120px]"
+                        required></textarea>
+                </div>
+                <div class="flex justify-end gap-2">
+
+                    <button type="submit" class="px-4 py-2 rounded bg-blue-600 text-white font-semibold">Save</button>
+                </div>
+                <span class="ml-4 text-green-600 dispatch-modal-message"></span>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+    // URLs para o JS puro (renderizadas pelo Jinja2)
+    DISPATCHES_EXAMPLES_URL = "{{ url_for('get_dispatches_examples') }}";
+    EXAMPLE_DISPATCH_URL = "{{ url_for('get_example_dispatch', dispatch_name='__NAME__') }}";
+    ADD_DISPATCH_URL = "{{ url_for('add_dispatch', dispatch_name='__NAME__') }}";
+</script>

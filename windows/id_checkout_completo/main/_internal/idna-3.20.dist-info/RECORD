@@ -1,10 +1,10 @@
-idna-3.20.dist-info/INSTALLER,sha256=lzGya_sjpbpLpqm8jXm-FabfCJPMoV8B71bcwiSWmgM,12
+idna-3.20.dist-info/INSTALLER,sha256=hhWRYTe0vv7dIZwbURZi2J6aiZsKo2eb9ps0l8yv8Bc,12
 idna-3.20.dist-info/METADATA,sha256=29jBTB5MoeDJgkptvHy794iE8461LZEUjNMCX2ceS4U,7207
 idna-3.20.dist-info/RECORD,,
 idna-3.20.dist-info/WHEEL,sha256=lqN8jXt_QloFOGcx9kStvWbryhfEXoI2F2z-YURm350,81
 idna-3.20.dist-info/entry_points.txt,sha256=7H3nGOHap3jnLE5e7q7Ywr9Vq8axB7WIj5-C_4N2vhw,38
 idna-3.20.dist-info/licenses/LICENSE.md,sha256=GppPDj1HmickDd1ZqRN6ZqtKD539yMphiMwL_YUYfwQ,1541
-C:/Users/runneradmin/AppData/Local/pypoetry/Cache/virtualenvs/x-bridge-guIP71he-py3.11/Scripts/idna.exe,sha256=Yo4pOlb8LaoEDogYrNMVdlS_ntCH4iIsiSAnT2zgE9A,108448
+C:/Users/runneradmin/AppData/Local/pypoetry/Cache/virtualenvs/x-bridge-guIP71he-py3.11/Scripts/idna.exe,sha256=2GBbjWXDtIkZx8q3PDMMtnd1jHwZzMx077_sYmPY5B0,108448
 idna/__init__.py,sha256=hRTD7VMTajWW699RL6SHu919pama3K7YLgNj0sMG068,944
 idna/__main__.py,sha256=4JMK66Wj4uLZTKbF-sT3LAxOsr6buig77PmOkJCRRxw,83
 idna/cli.py,sha256=LgGXKiXmev37pdgkATwB6AiJORZTnA2zP3LzfEK4iWo,4245
